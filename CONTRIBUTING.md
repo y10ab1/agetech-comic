@@ -5,7 +5,7 @@
 ## 核心規則
 
 > **禁止直接 push 到 `main` 分支。**
-> 所有變更都必須開新分支，經由 Pull Request（PR）合併。
+> 所有變更都必須開新分支，經由 Pull Request（PR）合併，且需至少 1 人 review approve。
 
 `main` 分支必須隨時保持可運作、可展示的狀態（比賽 demo 用）。
 
@@ -46,7 +46,9 @@ git push -u origin <你的分支名>
 
 ### 5. Review 與合併
 
-- 由另一位成員 review 後合併（前端改動由後端看一眼、後端改動由前端看一眼即可）。
+- **`main` 已設定分支保護：PR 必須至少 1 人 approve 才能合併。**
+- **基本上由後端（repo owner）review PR**；前端（PM）的改動送 PR 後，由後端 review 通過再合併。
+- GitHub 不允許自己 approve 自己的 PR，所以請找對方 review。
 - 合併後刪除該分支。
 
 ## 各自負責範圍
