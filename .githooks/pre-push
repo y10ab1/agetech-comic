@@ -1,0 +1,31 @@
+#!/bin/sh
+#
+# 阻擋直接 push 到 main 分支。
+# 啟用方式（每個 clone 執行一次）：
+#     git config core.hooksPath .githooks
+#
+# 若確實需要繞過（不建議）：
+#     git push --no-verify
+
+protected_branch="main"
+remote="$1"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    # remote_ref 形如 refs/heads/main
+    case "$remote_ref" in
+        refs/heads/"$protected_branch")
+            echo ""
+            echo "已阻擋：不可直接 push 到「$protected_branch」分支。"
+            echo ""
+            echo "請改用分支 + Pull Request 流程："
+            echo "    git checkout -b feat/你的功能"
+            echo "    git push -u origin feat/你的功能"
+            echo ""
+            echo "詳見 CONTRIBUTING.md"
+            echo ""
+            exit 1
+            ;;
+    esac
+done
+
+exit 0

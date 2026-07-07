@@ -28,6 +28,9 @@ agetech-comic/
 
 前端透過後端提供的 `POST /comics/generate` API 生成漫畫，不需依賴 LINE 平台即可開發與展示。
 
+> **協作規則**：禁止直接 push 到 `main`，一律開分支走 Pull Request。詳見 [CONTRIBUTING.md](CONTRIBUTING.md)。
+> Clone 後請執行 `git config core.hooksPath .githooks` 啟用本地保護。
+
 ## 快速開始
 
 ### 後端
