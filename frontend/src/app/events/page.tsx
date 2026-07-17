@@ -8,7 +8,7 @@ import { ScreenHeading } from "@/components/ScreenHeading";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { Icon } from "@/components/Icon";
 import { useFlow } from "@/context/FlowContext";
-import { EVENT_POOL, MAX_EVENTS, QUESTIONS } from "@/data/questions";
+import { EVENT_GROUPS, EVENT_POOL, MAX_EVENTS, QUESTIONS } from "@/data/questions";
 import { suggestNextEvent } from "@/data/comic";
 import { getNarrator } from "@/data/narrator";
 import { unlockedStyles } from "@/data/rewards";
@@ -101,25 +101,40 @@ export default function EventBuilderPage() {
         ) : (
           <section aria-label="加入一件今天做的事">
             <h2 className="mb-3 text-[24px]">再加一件今天做的事</h2>
-            <ul className="m-0 mb-[var(--touch-gap)] grid list-none grid-cols-1 gap-[var(--touch-gap)] p-0 sm:grid-cols-2">
-              {available.map((option) => (
-                <li key={option.value}>
-                  <AccessibleButton
-                    size="lg"
-                    variant="neutral"
-                    icon={option.icon}
-                    block
-                    className="!justify-start !gap-4"
-                    onClick={() => {
-                      addEvent(option);
-                      setAnnounce(`已加入：${option.label}`);
-                    }}
-                  >
-                    {option.label}
-                  </AccessibleButton>
-                </li>
-              ))}
-            </ul>
+
+            {/* 三個小節分組：選項變多後降低認知負荷（已選的自動消失） */}
+            {EVENT_GROUPS.map((group) => {
+              const groupAvailable = group.options.filter(
+                (o) => !chosen.has(o.value),
+              );
+              if (groupAvailable.length === 0) return null;
+              return (
+                <div key={group.title} className="mb-6">
+                  <h3 className="mb-3 text-[22px] text-[color:var(--color-text-soft)]">
+                    {group.title}
+                  </h3>
+                  <ul className="m-0 grid list-none grid-cols-1 gap-[var(--touch-gap)] p-0 sm:grid-cols-2">
+                    {groupAvailable.map((option) => (
+                      <li key={option.value}>
+                        <AccessibleButton
+                          size="lg"
+                          variant="neutral"
+                          icon={option.icon}
+                          block
+                          className="!justify-start !gap-4"
+                          onClick={() => {
+                            addEvent(option);
+                            setAnnounce(`已加入：${option.label}`);
+                          }}
+                        >
+                          {option.label}
+                        </AccessibleButton>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
 
             <AccessibleButton
               size="lg"

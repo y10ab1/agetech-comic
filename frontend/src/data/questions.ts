@@ -48,18 +48,48 @@ export const QUESTIONS: Question[] = [
   },
 ];
 
-/** 事件選項池 —— 供事件串接頁挑選與「幫我想」自動補段。全圖卡、不打字。 */
-export const EVENT_POOL: QuestionOption[] = [
-  { value: "event:grandchild", label: "跟孫子講電話", icon: "📞" },
-  { value: "event:food", label: "買到好吃的", icon: "🍜" },
-  { value: "event:tea", label: "跟朋友泡茶", icon: "🍵" },
-  { value: "event:oldfriend", label: "遇到好久不見的老朋友", icon: "🤝" },
-  { value: "event:visit", label: "去朋友家坐坐", icon: "🚶" },
-  { value: "event:veggie", label: "買了新鮮的菜", icon: "🥬" },
-  { value: "event:photo", label: "看孫子的照片", icon: "🖼️" },
-  { value: "event:music", label: "聽了老歌", icon: "🎶" },
-  { value: "event:exercise", label: "做了運動", icon: "🤸" },
+/** 事件分組（v2）：三小節降低認知負荷；每個非保留 tag 至少有一個產生選項 */
+export interface EventGroup {
+  title: string;
+  options: QuestionOption[];
+}
+
+export const EVENT_GROUPS: EventGroup[] = [
+  {
+    title: "跟家人朋友",
+    options: [
+      { value: "event:grandchild", label: "跟孫子/孫女講電話", icon: "📞" },
+      { value: "event:photo", label: "看孫子/孫女的照片", icon: "🖼️" },
+      { value: "event:children", label: "跟兒女吃飯聊天", icon: "🍚" },
+      { value: "event:parents", label: "陪爸媽說說話", icon: "🧓" },
+      { value: "event:spouse-walk", label: "跟老伴一起散步", icon: "💑" },
+      { value: "event:tea", label: "跟朋友泡茶聊天", icon: "🍵" },
+      { value: "event:oldfriend", label: "遇到好久不見的老朋友", icon: "🤝" },
+    ],
+  },
+  {
+    title: "出門活動",
+    options: [
+      { value: "event:stroll", label: "出去散散步", icon: "🌳" },
+      { value: "event:exercise", label: "做了運動", icon: "🤸" },
+      { value: "event:veggie", label: "買了新鮮的菜", icon: "🥬" },
+      { value: "event:visit", label: "去朋友家坐坐", icon: "🚶" },
+    ],
+  },
+  {
+    title: "生活樂趣",
+    options: [
+      { value: "event:food", label: "買到好吃的", icon: "🍜" },
+      { value: "event:cook", label: "自己煮了一道好菜", icon: "🍳" },
+      { value: "event:music", label: "聽了老歌", icon: "🎶" },
+    ],
+  },
 ];
+
+/** 事件選項池（扁平版）—— 供「幫我想」自動補段與去重使用 */
+export const EVENT_POOL: QuestionOption[] = EVENT_GROUPS.flatMap(
+  (g) => g.options,
+);
 
 /** 事件串接上限（避免無邊界，維持認知負荷可控） */
 export const MAX_EVENTS = 4;

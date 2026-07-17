@@ -39,16 +39,21 @@ export function getTag(id: string): Tag | undefined {
   return TAG_BY_ID[id];
 }
 
-/** 選項 value → tag id（自動推導對照表） */
+/** 選項 value → tag id（自動推導對照表；一個選項可對多個 tag） */
 export const OPTION_TAG_MAP: Record<string, string[]> = {
   "event:grandchild": ["grandchild"],
   "event:photo": ["grandchild"],
+  "event:children": ["children"],
+  "event:parents": ["parents"],
+  "event:spouse-walk": ["spouse", "walk"], // 一選項雙 tag：伴侶＋出門走走
   "event:tea": ["friend"],
   "event:oldfriend": ["friend"],
   "event:visit": ["friend"],
+  "event:stroll": ["walk"],
   "place:market": ["market"],
   "event:veggie": ["market"],
   "event:food": ["food"],
+  "event:cook": ["food"],
   "place:park": ["walk"],
   "event:exercise": ["exercise"],
   "event:music": ["music"],
@@ -69,21 +74,31 @@ export function deriveTags(
   return TAGS.filter((t) => ids.has(t.id)).map((t) => t.id);
 }
 
-/** 選項 label → tag id（供舊資料由 loglineText 補推導） */
+/** 選項 label → tag id（供舊資料由 loglineText 補推導；舊 label 保留相容） */
 const LABEL_TAG_MAP: Record<string, string[]> = {
-  跟孫子講電話: ["grandchild"],
-  看孫子的照片: ["grandchild"],
-  跟朋友泡茶: ["friend"],
+  // 現行 label
+  "跟孫子/孫女講電話": ["grandchild"],
+  "看孫子/孫女的照片": ["grandchild"],
+  跟兒女吃飯聊天: ["children"],
+  陪爸媽說說話: ["parents"],
+  跟老伴一起散步: ["spouse", "walk"],
+  跟朋友泡茶聊天: ["friend"],
   遇到好久不見的老朋友: ["friend"],
   去朋友家坐坐: ["friend"],
+  出去散散步: ["walk"],
   菜市場: ["market"],
   買了新鮮的菜: ["market"],
   買到好吃的: ["food"],
+  自己煮了一道好菜: ["food"],
   公園散步: ["walk"],
   做了運動: ["exercise"],
   聽了老歌: ["music"],
   待在家裡: ["home"],
   樂齡中心: ["center"],
+  // 舊 label（改名前的歷史資料）
+  跟孫子講電話: ["grandchild"],
+  看孫子的照片: ["grandchild"],
+  跟朋友泡茶: ["friend"],
 };
 
 /** 舊紀錄沒存 tags 時，從 logline（「高興 + 菜市場 + …」）補推導 */
