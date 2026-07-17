@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-hidden="true">
+  <!-- 第二格：出門到某地（公園/市場意象） -->
+  <rect width="400" height="400" fill="#dff2ff"/>
+  <circle cx="330" cy="70" r="34" fill="#ffd23f"/>
+  <rect y="300" width="400" height="100" fill="#8fce7a"/>
+  <!-- 樹 -->
+  <rect x="70" y="210" width="20" height="100" fill="#7a5230"/>
+  <circle cx="80" cy="190" r="50" fill="#4fae52"/>
+  <!-- 路 -->
+  <path d="M150 400 L210 300 H260 L230 400 Z" fill="#cbb994"/>
+  <!-- 長輩走路 -->
+  <circle cx="210" cy="235" r="26" fill="#f7d4ab"/>
+  <path d="M186 233 a24 24 0 0 1 48 0z" fill="#d8d8d8"/>
+  <circle cx="203" cy="235" r="3.5" fill="#2a2118"/>
+  <circle cx="219" cy="235" r="3.5" fill="#2a2118"/>
+  <path d="M202 247 q9 7 18 0" fill="none" stroke="#7a4a2a" stroke-width="4" stroke-linecap="round"/>
+  <rect x="192" y="262" width="36" height="60" rx="14" fill="#e85d5d"/>
+  <!-- 拐杖 -->
+  <line x1="238" y1="270" x2="250" y2="330" stroke="#7a5230" stroke-width="6" stroke-linecap="round"/>
+</svg>

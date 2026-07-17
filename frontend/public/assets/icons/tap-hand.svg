@@ -1,0 +1,14 @@
+<!-- 點選手勢（配合 camera/microphone 的粗邊插圖風格） -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <title>用點的</title>
+  <desc>一隻手指往下點選的手勢，代表用點選圖卡的方式記錄</desc>
+  <!-- 點擊漣漪 -->
+  <path d="M 30 22 A 18 18 0 0 1 66 22" fill="none" stroke="#1E1E24" stroke-width="5" stroke-linecap="round"/>
+  <path d="M 38 26 A 10 10 0 0 1 58 26" fill="none" stroke="#1E1E24" stroke-width="4" stroke-linecap="round"/>
+  <!-- 手掌與食指 -->
+  <path d="M 44 30 v 28 l -8 -8 c -4 -4 -10 0 -7 5 l 14 22 c 3 5 8 8 14 8 h 8 c 8 0 14 -6 14 -14 v -14 c 0 -5 -4 -8 -8 -8 h -3 c 0 -4 -3 -6 -7 -6 h -4 c -1 -3 -3 -5 -6 -5 v -8 c 0 -8 -11 -8 -11 0 z"
+        fill="#D4AC2F" stroke="#1E1E24" stroke-width="5" stroke-linejoin="round"/>
+  <!-- 指節線（象牙白，在磚紅底上清楚） -->
+  <line x1="61" y1="52" x2="61" y2="60" stroke="#1E1E24" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="71" y1="56" x2="71" y2="62" stroke="#1E1E24" stroke-width="3.5" stroke-linecap="round"/>
+</svg>

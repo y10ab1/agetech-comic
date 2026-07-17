@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-hidden="true">
+  <!-- 第四格：滿足回到家、傍晚 -->
+  <rect width="400" height="400" fill="#ffe9cf"/>
+  <circle cx="330" cy="90" r="30" fill="#ff9d4d"/>
+  <rect y="300" width="400" height="100" fill="#c9a978"/>
+  <!-- 房子 -->
+  <rect x="60" y="220" width="140" height="90" fill="#f4e2c4" stroke="#7a5230" stroke-width="5"/>
+  <path d="M50 220 L130 160 L210 220 Z" fill="#c0553f"/>
+  <rect x="110" y="255" width="40" height="55" fill="#7a5230"/>
+  <!-- 長輩滿足 -->
+  <circle cx="280" cy="250" r="30" fill="#f7d4ab"/>
+  <path d="M252 247 a28 28 0 0 1 56 0z" fill="#d8d8d8"/>
+  <path d="M266 248 q6 -8 12 0" fill="none" stroke="#2a2118" stroke-width="4" stroke-linecap="round"/>
+  <path d="M284 248 q6 -8 12 0" fill="none" stroke="#2a2118" stroke-width="4" stroke-linecap="round"/>
+  <path d="M268 262 q14 14 28 0" fill="none" stroke="#7a4a2a" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="258" cy="262" r="7" fill="#f6a9a0" opacity="0.6"/>
+  <circle cx="302" cy="262" r="7" fill="#f6a9a0" opacity="0.6"/>
+</svg>
