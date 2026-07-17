@@ -59,7 +59,21 @@ LINE 推播為付費資源（輕用量免費約 200 則/月、中用量約 NT$80
 | `reward_granted`（里程碑/畫風解鎖） | 後端獎勵引擎 | 黏著分析 |
 | `quick_checkin`（吃藥/運動打卡） | webhook postback | 健康類成就（Phase 3） |
 
-## 七、階段規劃
+## 七、LIFF 相容性評估（PM 審閱官方文件後定案）
+
+| 項目 | 決策／對策 |
+|---|---|
+| 檢視尺寸 | **Full**（app 級體驗） |
+| Action button | **開 Module mode 隱藏**——避免長輩誤觸多分頁/最小化而迷路；再進入點本來就是 Rich Menu，不依賴「最近使用的服務」 |
+| 分享 | 一律 `liff.shareTargetPicker()`；**不用** `liff.sendMessages()`（官方明載 reload 後失效） |
+| TTS | ⚠️ LIFF browser 為 WKWebView/Android WebView——**拿到 LIFF ID 後第一個 spike：實測 speechSynthesis**；失敗則切後端 TTS 音檔（台語版本來就走此路） |
+| 語音輸入 | WebView 無 SpeechRecognition → 確定走 MediaRecorder＋後端 STT（與原規劃一致） |
+| 快取 | LIFF browser 快取無法手動清 → HTML 設 `Cache-Control: no-cache`（hashed assets 照常快取），避免長輩卡舊版 |
+| 舊機型風險 | 官方僅承諾最新版最佳；**場域實測必列舊 Android/舊版 LINE 機型** |
+| 建置注意 | LIFF 掛在 **LINE Login channel**（與 Messaging API channel 分開、同 provider）；Endpoint URL 需 HTTPS（前端需正式部署位置；本機用 LIFF CLI 的 HTTPS dev server） |
+| 展示 | LIFF 支援 external browser → 決審投影可用一般瀏覽器跑 |
+
+## 八、階段規劃
 
 - **P7a 前端 LIFF 化**（可立即做，含 mock 後備）
 - **P7b 聊天層設計**：Rich Menu 視覺、提醒文案、快速打卡 Flex 模板（前端出稿、後端接線）
