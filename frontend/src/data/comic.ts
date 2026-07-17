@@ -123,24 +123,27 @@ const PLACE_SCENE: Record<string, string> = {
   待在家裡: "舒適的家中客廳，窗邊灑進午後陽光",
 };
 
+/** 事件敘事化字典 —— 以 value（穩定 id）為 key；label 依治理規則可改，不可當 key */
 const EVENT_SCENE: Record<string, string> = {
-  "跟孫子/孫女講電話": "拿起手機和孫子孫女開心地聊了好久",
-  "看孫子/孫女的照片": "翻看著孫子孫女的照片，臉上滿是溫柔",
-  跟兒女吃飯聊天: "和兒女圍著餐桌吃飯，邊吃邊聊近況",
-  陪爸媽說說話: "陪爸媽坐著說說話，聽他們講以前的故事",
-  跟老伴一起散步: "和老伴牽著手出門散步，走走停停",
-  跟朋友泡茶聊天: "和老朋友圍著茶桌泡茶、話家常",
-  出去散散步: "到外面走走，呼吸新鮮空氣",
-  自己煮了一道好菜: "進廚房露了一手，煮了一道拿手好菜",
-  跟孫子講電話: "拿起手機和孫子開心地聊了好久",
-  買到好吃的: "買到了心心念念的美味，笑得合不攏嘴",
-  跟朋友泡茶: "和老朋友圍著茶桌泡茶、話家常",
-  遇到好久不見的老朋友: "巧遇了好久不見的老朋友，兩人又驚又喜",
-  去朋友家坐坐: "到朋友家坐坐，聊得欲罷不能",
-  買了新鮮的菜: "挑了幾樣最新鮮的菜，打算晚上露一手",
-  看孫子的照片: "翻看著孫子的照片，臉上滿是溫柔",
-  聽了老歌: "聽著熟悉的老歌，跟著輕輕哼唱",
-  做了運動: "伸展筋骨動一動，全身都舒暢了起來",
+  "event:grandchild": "拿起手機和孫子孫女開心地聊了好久",
+  "event:photo": "翻看著孫子孫女的照片，臉上滿是溫柔",
+  "event:children": "和兒女圍著餐桌吃飯，邊吃邊聊近況",
+  "event:parents": "陪爸媽坐著說說話，聽他們講以前的故事",
+  "event:spouse-walk": "和老伴牽著手出門散步，走走停停",
+  "event:tea": "和老朋友圍著茶桌泡茶、話家常",
+  "event:oldfriend": "巧遇了好久不見的老朋友，兩人又驚又喜",
+  "event:stroll": "到外面走走，呼吸新鮮空氣",
+  "event:exercise": "伸展筋骨動一動，全身都舒暢了起來",
+  "event:veggie": "挑了幾樣最新鮮的菜，打算晚上露一手",
+  "event:visit": "到朋友家坐坐，聊得欲罷不能",
+  "event:food": "買到了心心念念的美味，笑得合不攏嘴",
+  "event:cook": "進廚房露了一手，煮了一道拿手好菜",
+  "event:music": "聽著熟悉的老歌，跟著輕輕哼唱",
+};
+
+/** 地點敘事片語 —— 以 value（穩定 id）為 key；place:home 不適用「出門來到」句型 */
+const PLACE_NARRATIVE: Record<string, string> = {
+  "place:home": "在家裡好好休息",
 };
 
 function moodExpression(mood: string): Expression {
@@ -155,10 +158,12 @@ export function generateMockScript(flow: FlowSnapshot): DisplayScript {
   const mood = selections.mood?.label ?? "好";
   const place = selections.place?.label ?? "外面";
   const placeScene = PLACE_SCENE[place] ?? `${place}的一天`;
+  const placeNarrative =
+    PLACE_NARRATIVE[selections.place?.value ?? ""] ?? `出門來到了${place}`;
   const eventList = events.length
     ? events
     : [{ value: "event:default", label: "做了件開心的事", icon: "✨" }];
-  const eventScenes = eventList.map((e) => EVENT_SCENE[e.label] ?? e.label);
+  const eventScenes = eventList.map((e) => EVENT_SCENE[e.value] ?? e.label);
   const eventCaption = eventList.map((e) => e.label).join("、");
 
   const panels = [
@@ -169,8 +174,8 @@ export function generateMockScript(flow: FlowSnapshot): DisplayScript {
     },
     {
       src: "/assets/comics/panel-2.svg",
-      alt: `${salutation}的AI故事漫畫第二格：來到${place}，${placeScene}`,
-      caption: `第二格：出門來到${place}。`,
+      alt: `${salutation}的AI故事漫畫第二格：${placeNarrative}，${placeScene}`,
+      caption: `第二格：${placeNarrative}。`,
     },
     {
       src: "/assets/comics/panel-3.svg",
@@ -196,7 +201,7 @@ export function generateMockScript(flow: FlowSnapshot): DisplayScript {
     panelIndex: 0,
   });
   segments.push({
-    text: `後來您出門，來到了${place}，${placeScene}。`,
+    text: `後來您${placeNarrative}，${placeScene}。`,
     expression: "smile",
     panelIndex: 1,
   });
@@ -210,7 +215,7 @@ export function generateMockScript(flow: FlowSnapshot): DisplayScript {
     });
   });
   segments.push({
-    text: `滿足地回到家，今天真是美好的一天。下次再說給${name}聽好嗎？`,
+    text: `滿足地回到家，今天真是美好的一天。這麼好的故事，也讓家人看看好嗎？下次再說給${name}聽。`,
     expression: "smile",
     panelIndex: 3,
   });
@@ -243,13 +248,71 @@ export async function mockLineLogin(existing: string | null): Promise<string> {
   return "LINE-U" + Date.now().toString(36).toUpperCase();
 }
 
+// ---- 分享問候語（家人在 LINE 看到的文字）----
+// 二段式：一句自然近況（心情＋地點）＋一句依最後一個事件挑選的回應鉤子，
+// 讓家人「有話可接、一句話就能回」。皆以 value 為 key。
+
+/** 心情敘事化（含收尾標點） */
+const MOOD_FEEL: Record<string, string> = {
+  "mood:happy": "心情真好！",
+  "mood:calm": "心裡很自在。",
+  "mood:tired": "人有點累，心倒是很舒服。",
+};
+
+/** 地點敘事化（「今天」之後的片語） */
+const PLACE_PHRASE: Record<string, string> = {
+  "place:market": "去菜市場",
+  "place:park": "去公園散步",
+  "place:center": "去樂齡中心",
+  "place:home": "待在家裡",
+};
+
+/** 事件 → 回應鉤子：與說書腳本高潮句共用「最後一個事件」，故事高潮＝家人收到的問句主題 */
+const EVENT_HOOK: Record<string, string> = {
+  "event:grandchild": "今天跟你講完電話，我開心一整天。",
+  "event:photo": "看你的照片看得笑瞇瞇，什麼時候再拍新的給我？",
+  "event:children": "今天一起吃飯真開心，下次想吃什麼跟我說。",
+  "event:parents": "今天陪阿祖說了好多話，改天講給你聽。",
+  "event:spouse-walk": "我們兩個都被畫進去了，你看像不像？",
+  "event:tea": "跟老朋友泡茶聊了一下午，猜猜我們聊到誰？",
+  "event:oldfriend": "遇到好久不見的老朋友，你一定猜不到是誰！",
+  "event:stroll": "今天外面天氣真好，你那邊呢？",
+  "event:exercise": "我今天有做運動喔，幫我按個讚！",
+  "event:veggie": "買了新鮮的菜，猜猜晚上要煮什麼？",
+  "event:visit": "去朋友家坐坐，聊得欲罷不能，改天說給你聽。",
+  "event:food": "買到好吃的，猜猜是什麼？猜對請你吃。",
+  "event:cook": "煮了一道拿手菜，下次回來煮給你吃好不好？",
+  "event:music": "聽了老歌，這首你們小時候我常放，還記得嗎？",
+};
+
+/** 沒有對應鉤子時的通用收尾（不施壓、貼圖即可回） */
+const FALLBACK_HOOK = "看完跟我說好不好看？";
+
+/** 組出以長輩第一人稱發出的問候語（TODO(後端契約)：正式版由後端 AI 生成 ComicResult.greeting） */
+export function buildGreeting(
+  selections: Selections,
+  events: QuestionOption[],
+  narratorName: string,
+): string {
+  const moodFeel =
+    MOOD_FEEL[selections.mood?.value ?? ""] ?? "過得很充實。";
+  const placePhrase =
+    PLACE_PHRASE[selections.place?.value ?? ""] ??
+    (selections.place ? `去${selections.place.label}` : "出去走走");
+  const lastEvent = events[events.length - 1];
+  const hook = (lastEvent && EVENT_HOOK[lastEvent.value]) ?? FALLBACK_HOOK;
+  return `今天${placePhrase}，${moodFeel}${narratorName}把今天畫成漫畫了——${hook}`;
+}
+
 /** 模擬分享到 LINE 家族群組，回傳溫暖問候語 */
 export async function mockLineShare(
-  loglineText: string,
+  selections: Selections,
+  events: QuestionOption[],
+  narratorName: string,
 ): Promise<{ ok: boolean; greeting: string }> {
   await delay(900);
   return {
     ok: true,
-    greeting: `我今天的故事：${loglineText}。做成漫畫送給你們看，記得回我喔！`,
+    greeting: buildGreeting(selections, events, narratorName),
   };
 }

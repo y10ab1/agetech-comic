@@ -68,7 +68,7 @@ export default function SharePage() {
 
   const handleShare = async () => {
     setSharing(true);
-    const res = await mockLineShare(script.loglineText);
+    const res = await mockLineShare(selections, events, narrator.name);
     setGreeting(res.greeting);
     setSharing(false);
   };
@@ -117,7 +117,7 @@ export default function SharePage() {
             onClick={handleShare}
             disabled={sharing}
           >
-            {sharing ? "正在傳送…" : "傳送給我的孫子（分享到 LINE）"}
+            {sharing ? "正在傳送…" : "傳送給家人（分享到 LINE）"}
           </AccessibleButton>
 
           <AccessibleButton
@@ -141,6 +141,9 @@ export default function SharePage() {
                 <span aria-hidden="true" className="mr-1 inline-block align-middle"><Icon name="check" size={26} /></span>已幫您送到家族群組！
               </p>
               <p className="m-0 text-[20px] leading-[1.5]">「{greeting}」</p>
+              <p className="mb-0 mt-2 text-[20px] leading-[1.5]">
+                等他們回話，{narrator.name}再念給您聽。
+              </p>
             </div>
           )}
         </div>
