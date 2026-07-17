@@ -36,6 +36,9 @@ class Settings(BaseSettings):
 
     # PocketBase（DB + 圖檔儲存層，後端以 HTTP 存取）
     pocketbase_url: str = "http://localhost:8090"
+    # 回給前端的圖檔公開網址前綴（瀏覽器可連）。留空則沿用 pocketbase_url。
+    # compose 內部主機名（pocketbase:8090）瀏覽器連不到，正式部署務必設對外位址。
+    pocketbase_public_url: str = ""
     pocketbase_admin_email: str = ""
     pocketbase_admin_password: str = ""
     # 關閉持久化時（如純生圖測試），/comics/generate 不寫 DB

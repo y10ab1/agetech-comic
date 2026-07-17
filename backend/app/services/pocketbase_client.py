@@ -28,6 +28,10 @@ class PocketBaseClient:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._base = settings.pocketbase_url.rstrip("/")
+        # 回給前端的公開網址前綴（瀏覽器可連）；留空則用內部 base
+        self._public_base = (
+            settings.pocketbase_public_url.rstrip("/") or self._base
+        )
         self._token: str | None = None
 
     async def _authenticate(self, client: httpx.AsyncClient) -> str:
@@ -47,8 +51,8 @@ class PocketBaseClient:
         return self._token
 
     def file_url(self, record: dict, filename: str) -> str:
-        """組出圖檔的公開網址。"""
-        return f"{self._base}/api/files/{record['collectionId']}/{record['id']}/{filename}"
+        """組出圖檔的公開網址（用對外可達的 public base）。"""
+        return f"{self._public_base}/api/files/{record['collectionId']}/{record['id']}/{filename}"
 
     async def create_diary(
         self,
