@@ -97,7 +97,8 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* 唯一主行動：能生成＝新增日記；用完＝看存摺（位置固定） */}
+        {/* 唯一主行動：能生成＝新增日記；用完＝看今天的漫畫（位置固定）。
+            文案與下方 NavRow「我的集章存摺」(看全部)作「今天 vs 全部」區分，避免重複 */}
         {canGenerate ? (
           <AccessibleButton
             size="xl"
@@ -126,9 +127,9 @@ export default function HomePage() {
             onClick={() => router.push("/collection")}
           >
             <span className="text-left">
-              <span className="block text-[28px]">看我的集章存摺</span>
+              <span className="block text-[28px]">看今天的漫畫</span>
               <span className="block text-[18px] font-normal">
-                回看今天和以前的漫畫
+                今天的故事做好了，點進去回味一下
               </span>
             </span>
           </AccessibleButton>
