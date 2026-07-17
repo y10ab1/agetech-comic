@@ -1,31 +1,51 @@
 import type { QuestionOption, Selections } from "./types";
 
 /**
- * Tag 固定 taxonomy（PM 定案）—— controlled vocabulary。
+ * Tag 固定 taxonomy v2（PM 定案）—— controlled vocabulary ＋ 分析維度。
  * 前端由結構化選項自動推導（0 AI token、0 打字）；
  * 日後拍照/語音輸入時，後端 AI 也必須從這張表選 tag（ComicResult.tags）。
+ * 每週關懷小結的規則跑在「維度」上（如：外出=0 且 居家≥5 → 建議出門），
+ * 不綁個別 tag——新增 tag 只要標對維度，週報規則自動涵蓋。
+ * 正式版本表由後端持有（GET /tags 下發）；此為 mock 後備副本。
  * emoji 屬內容插圖（依 guideline 准用）。
  */
+
+/** 分析維度：週報/關懷訊號的統計單位 */
+export type TagDimension =
+  | "social" // 社交
+  | "outing" // 外出
+  | "physical" // 身體活動
+  | "leisure" // 生活樂趣
+  | "home" // 居家
+  | "health"; // 健康（保留）
+
 export interface Tag {
   id: string;
   label: string;
   icon: string;
+  /** 所屬維度（可多個，如樂齡中心＝外出＋社交） */
+  dimensions: TagDimension[];
   /** 保留欄位：功能尚未上線（如健康），不出現在篩選列 */
   reserved?: boolean;
 }
 
 export const TAGS: Tag[] = [
-  { id: "grandchild", label: "孫子", icon: "👶" },
-  { id: "friend", label: "朋友", icon: "🤝" },
-  { id: "market", label: "買菜", icon: "🧺" },
-  { id: "food", label: "美食", icon: "🍜" },
-  { id: "walk", label: "出門走走", icon: "🌳" },
-  { id: "exercise", label: "運動", icon: "🤸" },
-  { id: "music", label: "音樂", icon: "🎶" },
-  { id: "home", label: "在家", icon: "🏠" },
-  { id: "center", label: "樂齡中心", icon: "🏫" },
+  { id: "grandchild", label: "孫子", icon: "👶", dimensions: ["social"] },
+  { id: "friend", label: "朋友", icon: "🤝", dimensions: ["social"] },
+  { id: "market", label: "買菜", icon: "🧺", dimensions: ["outing"] },
+  { id: "food", label: "美食", icon: "🍜", dimensions: ["leisure"] },
+  { id: "walk", label: "出門走走", icon: "🌳", dimensions: ["outing"] },
+  { id: "exercise", label: "運動", icon: "🤸", dimensions: ["physical"] },
+  { id: "music", label: "音樂", icon: "🎶", dimensions: ["leisure"] },
+  { id: "home", label: "在家", icon: "🏠", dimensions: ["home"] },
+  {
+    id: "center",
+    label: "樂齡中心",
+    icon: "🏫",
+    dimensions: ["outing", "social"],
+  },
   // 保留：等健康小記（拍藥袋/回診）上線後掛入
-  { id: "health", label: "健康", icon: "💊", reserved: true },
+  { id: "health", label: "健康", icon: "💊", dimensions: ["health"], reserved: true },
 ];
 
 const TAG_BY_ID = Object.fromEntries(TAGS.map((t) => [t.id, t]));

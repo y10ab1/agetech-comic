@@ -38,7 +38,11 @@
 （**每日提醒、KPI、跨裝置都依賴這張表**）：
 
 - **寫入**：`POST /comics/generate` 成功時，後端**順手建立日記紀錄**
-  （user_id、created_at、title、tags、style、cover_url、logline）。前端不再另行寫入。
+  （user_id、created_at、title、tags、**mood**、style、cover_url、logline）。前端不再另行寫入。
+  - `mood`：`happy | calm | tired`（長輩每次都會選，零 UX 改動）——**每週關懷小結最強的訊號**（如「累 ≥4 天」觸發關懷語）。
+  - `tags`：後端正式持有 **tag table v2（含 dimensions 維度欄）**，未來以 `GET /tags` 下發；
+    週報規則跑在維度上（social/outing/physical/leisure/home/health），
+    副本見 `frontend/src/data/tags.ts`。
 - **讀取**：`GET /me/diaries?month=2026-07` → 該月日記陣列（集章存摺頁用）；
   另附 `total_count`（集點卡進度）與 `recorded_today: bool`。
 - 前端切換方式：`data/collection.ts` 已隔離存取層，換成 API 呼叫即可，頁面不動。
