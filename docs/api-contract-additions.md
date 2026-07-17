@@ -23,8 +23,18 @@
 | `tags` | `list[str]` | **限定 taxonomy**（見下方白名單）。拍照/語音輸入時由 AI 判斷；圖卡輸入時可由前端傳入或後端重算 |
 | `cover_url` | `str` | 封面圖（可用第一格或另生成）。前端目前以「準備中」佔位圖呈現，拿到即替換 |
 
-**tags 白名單**（controlled vocabulary，禁止自由生成，來源 `frontend/src/data/tags.ts`）：
-`grandchild`(孫子)、`friend`(朋友)、`market`(買菜)、`food`(美食)、`walk`(出門走走)、`exercise`(運動)、`music`(音樂)、`home`(在家)、`center`(樂齡中心)、`health`(健康，保留)
+**tags 白名單**（controlled vocabulary，禁止自由生成）——
+**唯一事實來源：repo 根目錄 `shared/tags.json`**（前端直接 import、後端載入餵 DB seed 與 `GET /tags`）。
+現行 v3：`grandchild`(孫子/孫女)、`children`(兒女)、`parents`(父母)、`spouse`(伴侶)、
+`friend`(朋友)、`market`(買菜)、`walk`(出門走走)、`center`(樂齡中心)、`exercise`(運動)、
+`food`(美食)、`music`(音樂)、`home`(在家)、`health`(健康，保留)。
+
+**共同維護規則（前後端都遵守）**：
+1. `id` **永不改、永不刪**（歷史日記靠它；淘汰改用 `reserved: true`）
+2. `label`／`icon` 隨時可改（顯示層，舊資料自動跟著新 label）
+3. 新增 tag **必須標 `dimensions`**（否則週報規則涵蓋不到）
+4. 任何變更走 **PR、前後端互相 review**（同時影響前端篩選、AI 白名單、週報規則）
+5. `version` 遞增
 
 ## 2. `DiaryEntry` 增補欄位（P0）
 

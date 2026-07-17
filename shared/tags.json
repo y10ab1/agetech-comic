@@ -1,0 +1,20 @@
+{
+  "$comment": "Tag taxonomy 唯一事實來源（前端 import、後端載入餵 GET /tags）。維護規則見 docs/api-contract-additions.md §1：id 永不改不刪、label/icon 可改、新 tag 必標 dimensions、變更走 PR 雙方 review、version 遞增。",
+  "version": 3,
+  "dimensions": ["social", "outing", "physical", "leisure", "home", "health"],
+  "tags": [
+    { "id": "grandchild", "label": "孫子/孫女", "icon": "👶", "dimensions": ["social"] },
+    { "id": "children", "label": "兒女", "icon": "👨‍👩‍👧", "dimensions": ["social"] },
+    { "id": "parents", "label": "父母", "icon": "🧓", "dimensions": ["social"] },
+    { "id": "spouse", "label": "伴侶", "icon": "💑", "dimensions": ["social"] },
+    { "id": "friend", "label": "朋友", "icon": "🤝", "dimensions": ["social"] },
+    { "id": "market", "label": "買菜", "icon": "🧺", "dimensions": ["outing"] },
+    { "id": "walk", "label": "出門走走", "icon": "🌳", "dimensions": ["outing"] },
+    { "id": "center", "label": "樂齡中心", "icon": "🏫", "dimensions": ["outing", "social"] },
+    { "id": "exercise", "label": "運動", "icon": "🤸", "dimensions": ["physical"] },
+    { "id": "food", "label": "美食", "icon": "🍜", "dimensions": ["leisure"] },
+    { "id": "music", "label": "音樂", "icon": "🎶", "dimensions": ["leisure"] },
+    { "id": "home", "label": "在家", "icon": "🏠", "dimensions": ["home"] },
+    { "id": "health", "label": "健康", "icon": "💊", "dimensions": ["health"], "reserved": true }
+  ]
+}
