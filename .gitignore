@@ -30,3 +30,6 @@ npm-debug.log*
 # 內部機敏文件——本 repo 公開，切勿入版控（競賽簡章摘要與原始 PDF）
 docs/competition-brief.md
 *.pdf
+
+# 個人 Claude 工作區設定與 sub-agent（暫不共享）
+.claude/
