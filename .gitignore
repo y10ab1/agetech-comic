@@ -26,3 +26,7 @@ next-env.d.ts
 # 日誌
 *.log
 npm-debug.log*
+
+# PocketBase 執行期資料（DB + 上傳圖檔，勿入版控；schema 走 pb_migrations）
+pocketbase/pb_data/
+pocketbase/pocketbase
