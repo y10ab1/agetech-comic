@@ -1,6 +1,6 @@
 import { generateComic as apiGenerateComic, type ComicResult } from "@/lib/api";
 import { buildLogline } from "./logline";
-import { DEFAULT_SALUTATION } from "./questions";
+import { COMBO_BY_VALUE, DEFAULT_SALUTATION } from "./questions";
 import { DEFAULT_NARRATOR_ID, getNarrator } from "./narrator";
 import type {
   DisplayScript,
@@ -123,8 +123,11 @@ const PLACE_SCENE: Record<string, string> = {
   待在家裡: "舒適的家中客廳，窗邊灑進午後陽光",
 };
 
-/** 事件敘事化字典 —— 以 value（穩定 id）為 key；label 依治理規則可改，不可當 key */
-const EVENT_SCENE: Record<string, string> = {
+/**
+ * @deprecated v3 起事件敘事收進 WHO_ACTION 矩陣（questions.ts）單一來源；
+ * 本表僅供舊 value（localStorage 殘存日記）fallback，下個版本清除。
+ */
+const EVENT_SCENE_LEGACY: Record<string, string> = {
   "event:grandchild": "拿起手機和孫子孫女開心地聊了好久",
   "event:photo": "翻看著孫子孫女的照片，臉上滿是溫柔",
   "event:children": "和兒女圍著餐桌吃飯，邊吃邊聊近況",
@@ -163,7 +166,9 @@ export function generateMockScript(flow: FlowSnapshot): DisplayScript {
   const eventList = events.length
     ? events
     : [{ value: "event:default", label: "做了件開心的事", icon: "✨" }];
-  const eventScenes = eventList.map((e) => EVENT_SCENE[e.value] ?? e.label);
+  const eventScenes = eventList.map(
+    (e) => COMBO_BY_VALUE[e.value]?.scene ?? EVENT_SCENE_LEGACY[e.value] ?? e.label,
+  );
   const eventCaption = eventList.map((e) => e.label).join("、");
 
   const panels = [
@@ -267,8 +272,11 @@ const PLACE_PHRASE: Record<string, string> = {
   "place:home": "待在家裡",
 };
 
-/** 事件 → 回應鉤子：與說書腳本高潮句共用「最後一個事件」，故事高潮＝家人收到的問句主題 */
-const EVENT_HOOK: Record<string, string> = {
+/**
+ * @deprecated v3 起分享鉤子收進 WHO_ACTION 矩陣（questions.ts）單一來源；
+ * 本表僅供舊 value fallback，下個版本清除。
+ */
+const EVENT_HOOK_LEGACY: Record<string, string> = {
   "event:grandchild": "今天跟你講完電話，我開心一整天。",
   "event:photo": "看你的照片看得笑瞇瞇，什麼時候再拍新的給我？",
   "event:children": "今天一起吃飯真開心，下次想吃什麼跟我說。",
@@ -300,7 +308,11 @@ export function buildGreeting(
     PLACE_PHRASE[selections.place?.value ?? ""] ??
     (selections.place ? `去${selections.place.label}` : "出去走走");
   const lastEvent = events[events.length - 1];
-  const hook = (lastEvent && EVENT_HOOK[lastEvent.value]) ?? FALLBACK_HOOK;
+  const hook =
+    (lastEvent &&
+      (COMBO_BY_VALUE[lastEvent.value]?.hook ??
+        EVENT_HOOK_LEGACY[lastEvent.value])) ||
+    FALLBACK_HOOK;
   return `今天${placePhrase}，${moodFeel}${narratorName}把今天畫成漫畫了——${hook}`;
 }
 

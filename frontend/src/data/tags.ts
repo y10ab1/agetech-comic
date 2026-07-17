@@ -1,6 +1,7 @@
 import type { QuestionOption, Selections } from "./types";
 
 import tagTable from "../../../shared/tags.json";
+import { WHO_ACTION } from "./questions";
 
 /**
  * Tag 固定 taxonomy —— **唯一事實來源在 repo 根目錄 `shared/tags.json`**
@@ -39,26 +40,33 @@ export function getTag(id: string): Tag | undefined {
   return TAG_BY_ID[id];
 }
 
-/** 選項 value → tag id（自動推導對照表；一個選項可對多個 tag） */
+/**
+ * 選項 value → tag id（一個選項可對多個 tag，如 event:spouse.walk＝spouse＋walk）。
+ * 事件組合的 tags 由 WHO_ACTION 矩陣（questions.ts）推導——單一事實來源；
+ * 本表只手寫地點與棄用的舊事件 value。
+ */
 export const OPTION_TAG_MAP: Record<string, string[]> = {
-  "event:grandchild": ["grandchild"],
-  "event:photo": ["grandchild"],
-  "event:children": ["children"],
-  "event:parents": ["parents"],
-  "event:spouse-walk": ["spouse", "walk"], // 一選項雙 tag：伴侶＋出門走走
-  "event:tea": ["friend"],
-  "event:oldfriend": ["friend"],
-  "event:visit": ["friend"],
-  "event:stroll": ["walk"],
+  ...Object.fromEntries(WHO_ACTION.map((c) => [c.value, c.tags])),
   "place:market": ["market"],
-  "event:veggie": ["market"],
-  "event:food": ["food"],
-  "event:cook": ["food"],
   "place:park": ["walk"],
-  "event:exercise": ["exercise"],
-  "event:music": ["music"],
   "place:home": ["home"],
   "place:center": ["center"],
+  // ---- 以下為 v2 複合句時代的舊 value（deprecated）——key 永不刪，
+  // 供 localStorage 殘存舊日記推導；對照新 value 見 PR 說明 ----
+  "event:grandchild": ["grandchild"], // → event:grandchild.call
+  "event:photo": ["grandchild"], // → event:grandchild.photo
+  "event:children": ["children"], // → event:children.meal
+  "event:parents": ["parents"], // → event:parents.chat
+  "event:spouse-walk": ["spouse", "walk"], // → event:spouse.walk
+  "event:tea": ["friend"], // → event:friend.tea
+  "event:oldfriend": ["friend"], // → event:friend.reunion
+  "event:visit": ["friend"], // → event:friend.visit
+  "event:stroll": ["walk"], // → event:solo.stroll
+  "event:veggie": ["market"], // → event:solo.market
+  "event:food": ["food"], // → event:solo.food
+  "event:cook": ["food"], // → event:solo.cook
+  "event:exercise": ["exercise"], // → event:solo.exercise
+  "event:music": ["music"], // → event:solo.music
 };
 
 /** 由本次選擇推導 tag（去重、依 TAGS 順序輸出） */
@@ -76,7 +84,9 @@ export function deriveTags(
 
 /** 選項 label → tag id（供舊資料由 loglineText 補推導；舊 label 保留相容） */
 const LABEL_TAG_MAP: Record<string, string[]> = {
-  // 現行 label
+  // 現行 label（v3 對象×行動組合，由矩陣推導）
+  ...Object.fromEntries(WHO_ACTION.map((c) => [c.label, c.tags])),
+  // v2 複合句時代的 label（歷史 logline 相容）
   "跟孫子/孫女講電話": ["grandchild"],
   "看孫子/孫女的照片": ["grandchild"],
   跟兒女吃飯聊天: ["children"],

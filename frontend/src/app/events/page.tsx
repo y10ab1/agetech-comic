@@ -8,13 +8,23 @@ import { ScreenHeading } from "@/components/ScreenHeading";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { Icon } from "@/components/Icon";
 import { useFlow } from "@/context/FlowContext";
-import { EVENT_GROUPS, EVENT_POOL, MAX_EVENTS, QUESTIONS } from "@/data/questions";
+import {
+  ACTION_TITLE,
+  EVENT_POOL,
+  MAX_EVENTS,
+  QUESTIONS,
+  WHO_HINT,
+  WHO_OPTIONS,
+  actionsForWho,
+} from "@/data/questions";
 import { suggestNextEvent } from "@/data/comic";
 import { getNarrator } from "@/data/narrator";
 import { unlockedStyles } from "@/data/rewards";
 
 /**
- * 事件細節串接頁 —— 圖卡連續串接（設上限）＋「幫我想」自動補一段（不打字）。
+ * 事件細節串接頁（v3 對象先行兩步式）——
+ * 步驟A「今天跟誰在一起呀？」選對象 → 步驟B 依對象過濾行動（白名單矩陣），
+ * 消滅複合句贅字；仍維持一頁一問題、圖卡連續串接（設上限）＋「幫我想」不打字。
  * 全程線性、無 Modal、每步有「就這樣，看漫畫」出口，含返回與逐段容錯移除。
  */
 export default function EventBuilderPage() {
@@ -23,6 +33,8 @@ export default function EventBuilderPage() {
     useFlow();
   const narrator = getNarrator(narratorId);
   const [announce, setAnnounce] = useState("");
+  /** 步驟B的對象（null＝步驟A選對象中） */
+  const [whoPick, setWhoPick] = useState<string | null>(null);
 
   const missing = !selections.mood || !selections.place;
   useEffect(() => {
@@ -34,6 +46,12 @@ export default function EventBuilderPage() {
   const chosen = new Set(events.map((e) => e.value));
   const available = EVENT_POOL.filter((e) => !chosen.has(e.value));
   const who = salutation || "阿公阿嬤";
+  /** 只顯示還有行動可選的對象（該對象行動選完就自動消失） */
+  const whoAvailable = WHO_OPTIONS.filter(
+    (w) => actionsForWho(w.value, chosen).length > 0,
+  );
+  const actions = whoPick ? actionsForWho(whoPick, chosen) : [];
+  const whoPicked = WHO_OPTIONS.find((w) => w.value === whoPick);
 
   const handleSuggest = () => {
     const suggestion = suggestNextEvent(events, EVENT_POOL);
@@ -85,7 +103,7 @@ export default function EventBuilderPage() {
           </ol>
           {events.length === 0 && (
             <p className="mt-3 mb-0 text-[20px] text-[color:var(--color-text-soft)]">
-              還沒加事情，先從下面挑一件今天做的事吧。
+              還沒加事情，先從下面選選看今天跟誰在一起吧。
             </p>
           )}
         </section>
@@ -98,43 +116,28 @@ export default function EventBuilderPage() {
           <ErrorNotice
             message={`今天的故事已經很豐富囉！按下面最大的按鈕，看看${narrator.name}幫您畫的漫畫吧。`}
           />
-        ) : (
-          <section aria-label="加入一件今天做的事">
-            <h2 className="mb-3 text-[24px]">再加一件今天做的事</h2>
-
-            {/* 三個小節分組：選項變多後降低認知負荷（已選的自動消失） */}
-            {EVENT_GROUPS.map((group) => {
-              const groupAvailable = group.options.filter(
-                (o) => !chosen.has(o.value),
-              );
-              if (groupAvailable.length === 0) return null;
-              return (
-                <div key={group.title} className="mb-6">
-                  <h3 className="mb-3 text-[22px] text-[color:var(--color-text-soft)]">
-                    {group.title}
-                  </h3>
-                  <ul className="m-0 grid list-none grid-cols-1 gap-[var(--touch-gap)] p-0 sm:grid-cols-2">
-                    {groupAvailable.map((option) => (
-                      <li key={option.value}>
-                        <AccessibleButton
-                          size="lg"
-                          variant="neutral"
-                          icon={option.icon}
-                          block
-                          className="!justify-start !gap-4"
-                          onClick={() => {
-                            addEvent(option);
-                            setAnnounce(`已加入：${option.label}`);
-                          }}
-                        >
-                          {option.label}
-                        </AccessibleButton>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
+        ) : whoPick === null ? (
+          <section aria-label="選擇今天在一起的人">
+            <h2 className="mb-2 text-[24px]">今天跟誰在一起呀？</h2>
+            <p className="mb-4 text-[20px] text-[color:var(--color-text-soft)]">
+              {WHO_HINT}
+            </p>
+            <ul className="m-0 mb-6 grid list-none grid-cols-1 gap-[var(--touch-gap)] p-0 sm:grid-cols-2">
+              {whoAvailable.map((option) => (
+                <li key={option.value}>
+                  <AccessibleButton
+                    size="lg"
+                    variant="neutral"
+                    icon={option.icon}
+                    block
+                    className="!justify-start !gap-4"
+                    onClick={() => setWhoPick(option.value)}
+                  >
+                    {option.label}
+                  </AccessibleButton>
+                </li>
+              ))}
+            </ul>
 
             <AccessibleButton
               size="lg"
@@ -145,6 +148,46 @@ export default function EventBuilderPage() {
               disabled={available.length === 0}
             >
               讓{narrator.name}幫我想一段
+            </AccessibleButton>
+          </section>
+        ) : (
+          <section aria-label="選擇做了什麼事">
+            <h2 className="mb-4 text-[24px]">
+              {ACTION_TITLE[whoPick] ?? "做了什麼呀？"}
+            </h2>
+            <ul className="m-0 mb-6 grid list-none grid-cols-1 gap-[var(--touch-gap)] p-0 sm:grid-cols-2">
+              {actions.map((combo) => (
+                <li key={combo.value}>
+                  <AccessibleButton
+                    size="lg"
+                    variant="neutral"
+                    icon={combo.icon}
+                    block
+                    className="!justify-start !gap-4"
+                    onClick={() => {
+                      addEvent({
+                        value: combo.value,
+                        label: combo.label,
+                        icon: combo.icon,
+                      });
+                      setWhoPick(null);
+                      setAnnounce(`已加入：${combo.label}`);
+                    }}
+                  >
+                    {combo.actionLabel}
+                  </AccessibleButton>
+                </li>
+              ))}
+            </ul>
+
+            <AccessibleButton
+              size="md"
+              variant="neutral"
+              icon={<Icon name="arrow-left" />}
+              debounce={false}
+              onClick={() => setWhoPick(null)}
+            >
+              換一個人{whoPicked ? `（不選${whoPicked.label}）` : ""}
             </AccessibleButton>
           </section>
         )}
