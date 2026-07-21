@@ -1,0 +1,40 @@
+# 一鍵起 FastAPI 後端 + PocketBase（DB + 圖檔儲存）
+# 用法：
+#   cp backend/.env.example backend/.env   # 填入 VERTEX_PROJECT 等
+#   docker compose up --build
+#
+# 首次啟動請先建立 PocketBase superuser（見 README）。
+# Vertex 認證：把本機 ADC 掛進 backend 容器（見下方 volumes）。
+
+services:
+  pocketbase:
+    build: ./pocketbase
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    volumes:
+      - pb_data:/pb/pb_data # DB + 上傳圖檔
+      - ./pocketbase/pb_migrations:/pb/pb_migrations # 版控 schema
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - pocketbase
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # 覆寫成 compose 網路內位址（不管 .env 寫什麼）
+      POCKETBASE_URL: http://pocketbase:8090
+      # 回給前端的圖檔公開網址（瀏覽器連得到；預設對映 host 的 8090）
+      POCKETBASE_PUBLIC_URL: ${POCKETBASE_PUBLIC_URL:-http://localhost:8090}
+      # 容器內讀 ADC
+      GOOGLE_APPLICATION_CREDENTIALS: /gcp/adc.json
+    volumes:
+      # 把本機 ADC 掛進容器供 Vertex 使用（唯讀）
+      - ${HOME}/.config/gcloud/application_default_credentials.json:/gcp/adc.json:ro
+
+volumes:
+  pb_data:

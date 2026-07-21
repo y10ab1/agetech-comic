@@ -33,3 +33,10 @@ docs/competition-brief.md
 
 # 個人 Claude 工作區設定與 sub-agent（暫不共享）
 .claude/
+
+# PocketBase 執行期資料（DB + 上傳圖檔，勿入版控；schema 走 pb_migrations）
+pocketbase/pb_data/
+pocketbase/pocketbase
+
+# docker-compose 本機覆寫（各自的埠 / 環境，不共享）
+docker-compose.override.yml
