@@ -34,7 +34,8 @@ const RATE_LABEL: Record<SpeechRate, string> = {
  */
 export default function TheaterPage() {
   const router = useRouter();
-  const { userId, salutation, selections, events, narratorId } = useFlow();
+  const { userId, salutation, selections, events, narratorId, styleId } =
+    useFlow();
   const narrator = getNarrator(narratorId);
   const speech = useSpeech(0.8);
 
@@ -52,7 +53,7 @@ export default function TheaterPage() {
     if (!complete) return;
     // 初始 state 已是 loading/failed=false，故 effect 內只做非同步生成
     let alive = true;
-    createComic({ userId, salutation, selections, events, narratorId })
+    createComic({ userId, salutation, selections, events, narratorId, styleId })
       .then((s) => {
         if (!alive) return;
         scriptRef.current = s;
