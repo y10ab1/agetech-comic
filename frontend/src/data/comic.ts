@@ -1,4 +1,8 @@
-import { generateComic as apiGenerateComic, type ComicResult } from "@/lib/api";
+import {
+  generateComic as apiGenerateComic,
+  type ComicResult,
+  type Mood,
+} from "@/lib/api";
 import { buildLogline } from "./logline";
 import { DEFAULT_SALUTATION } from "./questions";
 import { DEFAULT_NARRATOR_ID, getNarrator } from "./narrator";
@@ -17,8 +21,7 @@ export interface FlowSnapshot {
   selections: Selections;
   events: QuestionOption[];
   narratorId: string;
-  /** 畫風 id（rewards.ts STYLES；空＝預設）。
-   *  TODO(後端契約)：DiaryEntry 需增加可選 style 欄位後，真 API 路徑帶入。 */
+  /** 畫風 id（rewards.ts STYLES；空＝預設）。真 API 路徑帶入 DiaryEntry.style */
   styleId?: string;
 }
 
@@ -27,6 +30,14 @@ export interface FlowSnapshot {
  * 預設 true，讓沒有後端也能 demo；後端就緒後設 NEXT_PUBLIC_USE_MOCK=false。
  */
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
+
+const VALID_MOODS: readonly Mood[] = ["happy", "calm", "tired"];
+
+/** 從 mood 選項 value（如 "mood:happy"）解析出後端 Mood；無效則回 undefined。 */
+function resolveMood(selections: Selections): Mood | undefined {
+  const raw = selections.mood?.value?.split(":")[1];
+  return VALID_MOODS.includes(raw as Mood) ? (raw as Mood) : undefined;
+}
 
 /**
  * 前端唯一的漫畫生成入口。
@@ -39,6 +50,8 @@ export async function createComic(flow: FlowSnapshot): Promise<DisplayScript> {
       const result = await apiGenerateComic({
         user_id: flow.userId ?? "demo-user",
         text: buildLogline(flow.selections, flow.events),
+        style: flow.styleId || undefined,
+        mood: resolveMood(flow.selections),
       });
       return adaptComicResult(result, flow);
     } catch {
@@ -105,8 +118,8 @@ export function adaptComicResult(
 
   return {
     loglineText: buildLogline(flow.selections, flow.events),
-    // TODO(後端契約)：改用 ComicResult.title；目前後端未提供故用樣板
-    title: buildTitle(flow.selections, flow.events),
+    // 優先採用後端 AI 下的標題；後端未提供時退回本地樣板
+    title: result.title?.trim() || buildTitle(flow.selections, flow.events),
     narratorId: narrator.id,
     narratorName: narrator.name,
     panels,
