@@ -236,6 +236,7 @@ export default function TheaterPage() {
               <ComicPanels
                 title={`${salutation || "阿公阿嬤"}的四格漫畫：${script.loglineText}`}
                 panels={script.panels}
+                quadrantCaptions={script.quadrantCaptions}
                 activeIndex={isPlaybackActive ? seg?.panelIndex ?? -1 : -1}
               />
               <section

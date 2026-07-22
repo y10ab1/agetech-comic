@@ -114,10 +114,8 @@ export function adaptComicResult(
     return {
       text,
       expression: isLast ? "laugh" : "smile",
-      panelIndex: Math.min(
-        i,
-        Math.max(0, panels.length - 1),
-      ),
+      // 單張四格圖：panelIndex 為象限 0–3（依句序推進，尾句停在第四格）
+      panelIndex: Math.min(i, 3),
       accent: isLast,
     };
   });
@@ -190,27 +188,20 @@ export function generateMockScript(flow: FlowSnapshot): DisplayScript {
   );
   const eventCaption = eventList.map((e) => e.label).join("、");
 
+  // 單張 2×2 四格圖（api-contract-additions.md §1-1）：
+  // alt 為依閱讀順序的短版總述；完整口述由 segments（劇場「完整故事」）承擔
   const panels = [
     {
-      src: "/assets/comics/panel-1.svg",
-      alt: `${salutation}的AI故事漫畫第一格：早晨起床，心情${mood}`,
-      caption: `第一格：今天一早醒來，心情${mood}。`,
+      src: "/assets/comics/comic-4grid.svg",
+      alt: `${salutation}的AI故事四格漫畫：早晨心情${mood}、${placeNarrative}、${eventCaption}、滿足回家`,
+      caption: "",
     },
-    {
-      src: "/assets/comics/panel-2.svg",
-      alt: `${salutation}的AI故事漫畫第二格：${placeNarrative}，${placeScene}`,
-      caption: `第二格：${placeNarrative}。`,
-    },
-    {
-      src: "/assets/comics/panel-3.svg",
-      alt: `${salutation}的AI故事漫畫第三格：${eventScenes.join("，接著")}`,
-      caption: `第三格：${eventCaption}，好開心。`,
-    },
-    {
-      src: "/assets/comics/panel-4.svg",
-      alt: `${salutation}的AI故事漫畫第四格：滿足地回到家，為今天畫下句點`,
-      caption: `第四格：滿足地回到家，真是美好的一天。`,
-    },
+  ];
+  const quadrantCaptions = [
+    `今天一早醒來，心情${mood}。`,
+    `${placeNarrative}。`,
+    `${eventCaption}，好開心。`,
+    `滿足地回到家，真是美好的一天。`,
   ];
 
   const segments: ScriptSegment[] = [];
@@ -250,6 +241,7 @@ export function generateMockScript(flow: FlowSnapshot): DisplayScript {
     narratorId: narrator.id,
     narratorName: name,
     panels,
+    quadrantCaptions,
     segments,
   };
 }
