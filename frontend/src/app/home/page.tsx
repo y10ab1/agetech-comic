@@ -87,12 +87,16 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* 閒置 10 秒：溫和文字提示（無自動語音，任何互動即消失） */}
+        {/* 閒置 10 秒：溫和文字提示（無自動語音，任何互動即消失）。
+            暖黃底＝提醒語意（guideline 色票），依規範搭配圖示＋文字 */}
         {idle && (
           <div
             role="status"
-            className="mb-4 rounded-[var(--radius)] border-[3px] border-[color:var(--color-neutral-border)] bg-white p-4 text-[22px] font-bold"
+            className="mb-4 rounded-[var(--radius)] border-[3px] border-[color:var(--color-neutral-border)] bg-[color:var(--color-warn-bg)] p-4 text-[22px] font-bold"
           >
+            <span aria-hidden="true" className="mr-2 inline-block align-middle">
+              <Icon name="bulb" size={26} />
+            </span>
             {narrator.name}：點下面的大按鈕，開始記今天的日記喔！
           </div>
         )}
