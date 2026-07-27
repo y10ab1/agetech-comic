@@ -4,7 +4,12 @@ import {
   type Mood,
 } from "@/lib/api";
 import { buildLogline } from "./logline";
-import { COMBO_BY_VALUE, DEFAULT_SALUTATION } from "./questions";
+import {
+  COMBO_BY_VALUE,
+  DEFAULT_SALUTATION,
+  QUESTIONS,
+  WHO_ACTION,
+} from "./questions";
 import { DEFAULT_NARRATOR_ID, getNarrator } from "./narrator";
 import type {
   DisplayScript,
@@ -12,6 +17,7 @@ import type {
   QuestionOption,
   ScriptSegment,
   Selections,
+  StampRecord,
 } from "./types";
 
 /** 生成腳本所需的流程快照 */
@@ -246,6 +252,75 @@ export function generateMockScript(flow: FlowSnapshot): DisplayScript {
     panels,
     segments,
   };
+}
+
+// ---- 回憶重述（集章內頁：印章沒存 segments 時的優雅退化）----
+
+/** 事件 label → 場景敘事（v3 矩陣單一來源；查不到的舊 label 直接入句） */
+const SCENE_BY_LABEL: Record<string, string> = Object.fromEntries(
+  WHO_ACTION.map((c) => [c.label, c.scene]),
+);
+
+const MOOD_LABELS = new Set(
+  QUESTIONS.find((q) => q.id === "mood")?.options.map((o) => o.label) ?? [],
+);
+const PLACE_LABELS = new Set(
+  QUESTIONS.find((q) => q.id === "place")?.options.map((o) => o.label) ?? [],
+);
+
+/**
+ * 由 logline（「高興 + 菜市場 + …」）重建說書腳本——阿咪「憑記憶再說一次」，
+ * 全過去式、收藏感；退化不解釋（不出現「舊資料」「沒有錄音」等字眼）。
+ */
+export function buildMemoryScript(
+  stamp: StampRecord,
+  salutation: string,
+  dateText: string,
+): ScriptSegment[] {
+  const name = stamp.narratorName || getNarrator(DEFAULT_NARRATOR_ID).name;
+  const labels = stamp.loglineText
+    .split(" + ")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const mood = labels.find((l) => MOOD_LABELS.has(l));
+  const place = labels.find((l) => PLACE_LABELS.has(l));
+  const eventLabels = labels.filter((l) => l !== mood && l !== place);
+
+  const segments: ScriptSegment[] = [
+    {
+      text: `${salutation}，還記得${dateText}這一天嗎？讓${name}再說一次給您聽。`,
+      expression: "smile",
+    },
+  ];
+  if (mood) {
+    segments.push({
+      text: `那天一早，您的心情${mood}。`,
+      expression: moodExpression(mood),
+    });
+  }
+  if (place) {
+    segments.push({
+      text:
+        place === "待在家裡"
+          ? "那天您在家裡好好休息。"
+          : `那天您去了${place}。`,
+      expression: "smile",
+    });
+  }
+  eventLabels.forEach((label, i) => {
+    const scene = SCENE_BY_LABEL[label] ?? label;
+    const isLast = i === eventLabels.length - 1;
+    segments.push({
+      text: isLast ? `最棒的是，您${scene}，真是太好了！` : `您${scene}。`,
+      expression: isLast ? "laugh" : "smile",
+      accent: isLast,
+    });
+  });
+  segments.push({
+    text: `謝謝您把這一天記下來，真好。`,
+    expression: "smile",
+  });
+  return segments;
 }
 
 /** 模擬 LLM「幫我想一段」—— 依已選事件從池中挑合理接續，不打字、0 token */
