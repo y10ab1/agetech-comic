@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AccessibleButton } from "@/components/AccessibleButton";
+import { AmiCat } from "@/components/AmiCat";
 import { BackButton } from "@/components/BackButton";
 import { ScreenHeading } from "@/components/ScreenHeading";
 import { SubtitleBox } from "@/components/SubtitleBox";
@@ -118,11 +119,10 @@ export default function DiaryDetailPage() {
   const isPlaybackActive = phase === "playing" || phase === "paused";
   const seg = segments[segIndex];
 
+  // ready 狀態不出字幕框：CTA 由紅色按鈕獨自承擔，避免與按鈕語意重複
   const subtitleText = isPlaybackActive
     ? seg?.text ?? ""
-    : phase === "done"
-      ? `說完了。這一天真好，${name}幫您好好收著。`
-      : `翻開${dateText}的這一頁，想聽${name}再說一次嗎？`;
+    : `說完了。這一天真好，${name}幫您好好收著。`;
 
   const tags = (stamp.tags ?? [])
     .map((tid) => getTag(tid))
@@ -131,9 +131,13 @@ export default function DiaryDetailPage() {
   return (
     <main id="main">
       <div className="mx-auto max-w-[640px]">
-        <p className="mb-1 text-[20px] font-bold text-[color:var(--color-primary-strong)]">
-          {stampDateText(stamp.createdAt, true)} · {name}說的故事
-        </p>
+        {/* 眉標：小阿咪點出說書人身分（旁有文字故 decorative）；h1 保持純文字 */}
+        <div className="mb-1 flex items-center gap-2">
+          <AmiCat size={40} decorative className="shrink-0" />
+          <p className="m-0 text-[20px] font-bold text-[color:var(--color-primary-strong)]">
+            {stampDateText(stamp.createdAt, true)} · {name}說的故事
+          </p>
+        </div>
         <ScreenHeading>{title}</ScreenHeading>
 
         {/* 漫畫：有存 panels 原樣重現（朗讀逐格高亮）；沒存的顯示封面 */}
@@ -152,10 +156,12 @@ export default function DiaryDetailPage() {
         )}
 
         <div className="mt-5 flex flex-col gap-5">
-          <SubtitleBox
-            text={subtitleText}
-            accent={isPlaybackActive && seg?.accent}
-          />
+          {(isPlaybackActive || phase === "done") && (
+            <SubtitleBox
+              text={subtitleText}
+              accent={isPlaybackActive && seg?.accent}
+            />
+          )}
 
           {/* 語速三段（同劇場同元件同位置） */}
           <div

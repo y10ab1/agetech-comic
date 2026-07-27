@@ -248,11 +248,11 @@ function StampCard({
 }) {
   const title = stamp.title ?? stamp.loglineText;
   return (
-    <li className="overflow-hidden rounded-[var(--radius)] border-[3px] border-[color:var(--color-neutral-border)] bg-white">
+    <li className="overflow-hidden rounded-[var(--radius)] border-[3px] border-[color:var(--color-neutral-border)] bg-white transition-[border-color,box-shadow] duration-150 has-[a:hover]:border-[color:var(--color-primary-strong)] has-[a:hover]:shadow-[0_4px_12px_rgba(0,0,0,0.12)] has-[a:focus-visible]:border-[color:var(--color-primary-strong)]">
       {/* 整卡大目標：封面＋標題包成單一連結進回憶內頁（tag 藥丸留在連結外） */}
       <Link
         href={`/collection/${stamp.id}`}
-        className="block cursor-pointer text-inherit no-underline"
+        className="group block cursor-pointer text-inherit no-underline"
       >
         {/* 正式封面待後端 AI 圖；舊資料與 mock 一律顯示「準備中」佔位圖 */}
         <img
@@ -267,7 +267,8 @@ function StampCard({
           <p className="m-0 mb-2 text-[18px] font-bold text-[color:var(--color-primary-strong)]">
             {stamp.createdAt}
           </p>
-          <p className="m-0 flex items-center gap-1 text-[18px] font-bold text-[color:var(--color-primary-strong)]">
+          {/* 觸控裝置沒有 hover：可點性靠「按鈕外觀」承擔，hover 只是桌機加分 */}
+          <p className="m-0 flex min-h-[44px] items-center justify-center gap-1 rounded-[10px] border-[3px] border-[color:var(--color-primary-strong)] px-3 text-[18px] font-bold text-[color:var(--color-primary-strong)] transition-colors group-hover:bg-[color:var(--color-primary-strong)] group-hover:text-white group-active:bg-[color:var(--color-primary-strong)] group-active:text-white">
             點開重溫這一天
             <span aria-hidden="true">
               <Icon name="chevron-right" size={20} />
