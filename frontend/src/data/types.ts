@@ -72,4 +72,6 @@ export interface StampRecord {
   segments?: ScriptSegment[];
   /** 當天的漫畫格（落章時寫入；舊資料缺漏時內頁顯示封面佔位圖） */
   panels?: DisplayPanel[];
+  /** 單張四格圖的象限圖說（落章時寫入；panels 為多張的舊資料不適用） */
+  quadrantCaptions?: string[];
 }

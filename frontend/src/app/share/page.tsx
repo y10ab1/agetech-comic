@@ -57,6 +57,7 @@ export default function SharePage() {
       // 存下逐句腳本與漫畫格，讓集章內頁能原句重播（回憶內頁）
       segments: script.segments,
       panels: script.panels,
+      quadrantCaptions: script.quadrantCaptions,
     };
     const list = addStamp(record);
     // 消耗一次生成、依累計章數發里程碑獎勵

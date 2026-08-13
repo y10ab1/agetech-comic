@@ -263,6 +263,8 @@ const PLACE_LABELS = new Set(
 /**
  * 由 logline（「高興 + 菜市場 + …」）重建說書腳本——阿咪「憑記憶再說一次」，
  * 全過去式、收藏感；退化不解釋（不出現「舊資料」「沒有錄音」等字眼）。
+ * panelIndex 對映與 mock 同構（心情 0、地點 1、事件 2、收尾 3），
+ * 供「有 panels（單張四格圖）卻無 segments」的資料也能正確逐格高亮。
  */
 export function buildMemoryScript(
   stamp: StampRecord,
@@ -282,12 +284,14 @@ export function buildMemoryScript(
     {
       text: `${salutation}，還記得${dateText}這一天嗎？讓${name}再說一次給您聽。`,
       expression: "smile",
+      panelIndex: 0,
     },
   ];
   if (mood) {
     segments.push({
       text: `那天一早，您的心情${mood}。`,
       expression: moodExpression(mood),
+      panelIndex: 0,
     });
   }
   if (place) {
@@ -297,6 +301,7 @@ export function buildMemoryScript(
           ? "那天您在家裡好好休息。"
           : `那天您去了${place}。`,
       expression: "smile",
+      panelIndex: 1,
     });
   }
   eventLabels.forEach((label, i) => {
@@ -305,12 +310,14 @@ export function buildMemoryScript(
     segments.push({
       text: isLast ? `最棒的是，您${scene}，真是太好了！` : `您${scene}。`,
       expression: isLast ? "laugh" : "smile",
+      panelIndex: 2,
       accent: isLast,
     });
   });
   segments.push({
     text: `謝謝您把這一天記下來，真好。`,
     expression: "smile",
+    panelIndex: 3,
   });
   return segments;
 }
