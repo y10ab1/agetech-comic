@@ -64,4 +64,8 @@ export interface StampRecord {
   styleId?: string;
   /** 故事標題（正式由後端 AI 下標；舊資料缺漏時退回 logline） */
   title?: string;
+  /** 當天劇場的逐句腳本（落章時寫入；舊資料缺漏時內頁改用回憶重述樣板） */
+  segments?: ScriptSegment[];
+  /** 當天的漫畫格（落章時寫入；舊資料缺漏時內頁顯示封面佔位圖） */
+  panels?: DisplayPanel[];
 }

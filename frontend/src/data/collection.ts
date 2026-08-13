@@ -35,6 +35,15 @@ export function hasStampToday(): boolean {
   return loadStamps().some((s) => s.createdAt === today);
 }
 
+/** createdAt（如 2026/7/15）→ 口語日期。今年省年份（7月15日），跨年含年份。 */
+export function stampDateText(createdAt: string, withYear = false): string {
+  const [y, m, d] = createdAt.split("/");
+  if (!m || !d) return createdAt;
+  return withYear || y !== String(new Date().getFullYear())
+    ? `${y}年${m}月${d}日`
+    : `${m}月${d}日`;
+}
+
 // ---- 月份資料夾 ----
 
 /** createdAt（如 2026/7/15）→ 月份 key（2026/7） */

@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AccessibleButton } from "@/components/AccessibleButton";
 import { BackButton } from "@/components/BackButton";
@@ -247,20 +248,35 @@ function StampCard({
 }) {
   const title = stamp.title ?? stamp.loglineText;
   return (
-    <li className="overflow-hidden rounded-[var(--radius)] border-[3px] border-[color:var(--color-neutral-border)] bg-white">
-      {/* 正式封面待後端 AI 圖；舊資料與 mock 一律顯示「準備中」佔位圖 */}
-      <img
-        src={COVER_PLACEHOLDER}
-        alt={`「${title}」的漫畫封面（圖片準備中）`}
-        className="aspect-[4/3] w-full bg-[#efebe0] object-cover"
-      />
-      <div className="p-4">
-        <h3 className="m-0 mb-1 text-[22px] leading-[1.4] text-[color:var(--color-text)]">
-          {title}
-        </h3>
-        <p className="m-0 mb-3 text-[18px] font-bold text-[color:var(--color-primary-strong)]">
-          {stamp.createdAt}
-        </p>
+    <li className="overflow-hidden rounded-[var(--radius)] border-[3px] border-[color:var(--color-neutral-border)] bg-white transition-[border-color,box-shadow] duration-150 has-[a:hover]:border-[color:var(--color-primary-strong)] has-[a:hover]:shadow-[0_4px_12px_rgba(0,0,0,0.12)] has-[a:focus-visible]:border-[color:var(--color-primary-strong)]">
+      {/* 整卡大目標：封面＋標題包成單一連結進回憶內頁（tag 藥丸留在連結外） */}
+      <Link
+        href={`/collection/${stamp.id}`}
+        className="group block cursor-pointer text-inherit no-underline"
+      >
+        {/* 正式封面待後端 AI 圖；舊資料與 mock 一律顯示「準備中」佔位圖 */}
+        <img
+          src={COVER_PLACEHOLDER}
+          alt={`「${title}」的漫畫封面（圖片準備中）`}
+          className="aspect-[4/3] w-full bg-[#efebe0] object-cover"
+        />
+        <div className="p-4 pb-0">
+          <h3 className="m-0 mb-1 text-[22px] leading-[1.4] text-[color:var(--color-text)]">
+            {title}
+          </h3>
+          <p className="m-0 mb-2 text-[18px] font-bold text-[color:var(--color-primary-strong)]">
+            {stamp.createdAt}
+          </p>
+          {/* 觸控裝置沒有 hover：可點性靠「按鈕外觀」承擔，hover 只是桌機加分 */}
+          <p className="m-0 flex min-h-[44px] items-center justify-center gap-1 rounded-[10px] border-[3px] border-[color:var(--color-primary-strong)] px-3 text-[18px] font-bold text-[color:var(--color-primary-strong)] transition-colors group-hover:bg-[color:var(--color-primary-strong)] group-hover:text-white group-active:bg-[color:var(--color-primary-strong)] group-active:text-white">
+            點開重溫這一天
+            <span aria-hidden="true">
+              <Icon name="chevron-right" size={20} />
+            </span>
+          </p>
+        </div>
+      </Link>
+      <div className="p-4 pt-3">
         {/* 稽核修正：卡內輔助控制 44px（WCAG 2.5.5），間距 16px */}
         <div className="flex flex-wrap gap-4">
           {(stamp.tags ?? []).map((id) => {

@@ -83,8 +83,8 @@ const PATHS: Record<IconName, ReactNode> = {
   ),
   replay: (
     <>
-      <path d="M4 4.5v5.5h5.5" />
-      <path d="M4.8 10A8 8 0 1012 4a8 8 0 00-6 2.7L4 9" />
+      <path d="M20 3.5v5h-5" />
+      <path d="M20 12a8 8 0 11-8-8c2.2 0 4.3.9 5.9 2.4L20 8.5" />
     </>
   ),
   bulb: (
