@@ -253,12 +253,9 @@ export default function DiaryDetailPage() {
             {segments.map((s, i) => (
               <p
                 key={i}
-                className="mb-3 rounded-lg px-2 py-1 text-[20px] leading-[1.6]"
-                style={
-                  isPlaybackActive && i === segIndex
-                    ? { background: "#fff3c4", fontWeight: 700 }
-                    : undefined
-                }
+                className={`story__line mb-3 rounded-lg px-2 py-1 text-[20px] leading-[1.6] ${
+                  isPlaybackActive && i === segIndex ? "story__line--active" : ""
+                }`}
               >
                 {s.text}
               </p>

@@ -70,7 +70,10 @@ export function ComicPanels({
                 i === activeIndex ? "comic__capitem--active" : ""
               }`}
             >
-              <span className="comic__no">第 {i + 1} 格</span>
+              {/* <ol> 已提供項次語意，序號對報讀器隱藏避免重複報讀 */}
+              <span className="comic__no" aria-hidden="true">
+                第 {i + 1} 格
+              </span>
               {caption}
             </li>
           ))}

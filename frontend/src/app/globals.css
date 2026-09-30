@@ -351,11 +351,11 @@ main {
     overflow: hidden;
     background: var(--color-surface);
   }
+  /* 圖片自己決定 box（不裁切）：非正方圖也不會讓象限框錯位 */
   .comic__single-img {
     display: block;
     width: 100%;
-    aspect-ratio: 1 / 1;
-    object-fit: cover;
+    height: auto;
     background: #f0efe8;
   }
   /* 高亮框以 50%×50% 象限對位（版式由契約保證四格等分） */
@@ -392,10 +392,24 @@ main {
     color: var(--color-text);
     border-radius: 8px;
     padding: 4px 8px;
+    /* 預留色條寬度，高亮時文字不位移 */
+    border-left: 6px solid transparent;
   }
+  /* 「正在唸」：底色對比不足（warn-bg 對底僅 1.19:1），
+   * 以高對比左側色條（7:1+）作主要視覺線索（WCAG 1.4.11）；
+   * 不用粗體，避免行寬改變導致重新斷行跳動 */
   .comic__capitem--active {
-    background: #fff3c4;
-    font-weight: 700;
+    background: var(--color-warn-bg);
+    border-left-color: var(--color-primary-strong);
+  }
+
+  /* 朗讀中的句子（劇場／回憶內頁「完整故事」逐句高亮），線索同上 */
+  .story__line {
+    border-left: 6px solid transparent;
+  }
+  .story__line--active {
+    background: var(--color-warn-bg);
+    border-left-color: var(--color-primary-strong);
   }
 
   /* ---- 阿咪貓臉動畫（prefers-reduced-motion 由全域規則自動停止）---- */
