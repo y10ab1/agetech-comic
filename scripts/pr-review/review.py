@@ -89,21 +89,34 @@ def parse_result(events_text):
                 or type(finding.get("line")) is not int or finding["line"] < 1
                 or not isinstance(finding.get("body"), str) or not finding["body"].strip()):
             raise ValueError("Invalid finding")
-    if result["decision"] == "APPROVE" and findings:
-        raise ValueError("Approval contradicts findings")
-    if result["decision"] == "REQUEST_CHANGES" and not any(
-            f["priority"] in {"P1", "P2"} for f in findings):
-        raise ValueError("Request changes needs a blocking finding")
     return result
 
 
+def has_blocking(result):
+    return any(f["priority"] in {"P1", "P2"} for f in result["findings"])
+
+
+def review_complete(result, checks_ok):
+    return checks_ok and result["verification_complete"]
+
+
 def publication_decision(result, checks_ok, author, login):
+    """Derive the GitHub event from findings, not from the model's free choice.
+
+    Any P1/P2 finding requests changes, even if some verification is missing.
+    Approval requires the model's APPROVE, complete verification, passing checks
+    and no blocking findings (P3 suggestions may accompany an approval).
+    """
+    if has_blocking(result):
+        event = "REQUEST_CHANGES"
+    elif (result["decision"] == "APPROVE" and checks_ok
+            and result["verification_complete"]):
+        event = "APPROVE"
+    else:
+        event = "COMMENT"
     if author == login:
         return "COMMENT"  # GitHub prohibits self-approval and self-request-changes.
-    if result["decision"] == "APPROVE" and (
-            not checks_ok or not result["verification_complete"]):
-        return "COMMENT"
-    return result["decision"]
+    return event
 
 
 def same_revision(before, after):
@@ -187,6 +200,9 @@ def review(number, expected_sha=""):
         if context.exists() or context.is_symlink():
             raise RuntimeError("Reserved .review-context path already exists")
         print("Running applicable checks in Docker.", flush=True)
+        # The runner service uses UMask=0077; containers drop CAP_DAC_OVERRIDE,
+        # so make the (public) checkout world-readable for the read-only mount.
+        run(["chmod", "-R", "go+rX", str(source)])
         results = checks(source, changed, job / "checks.log")
         context.mkdir()
         shutil.copyfile(job / "checks.log", context / "checks.log")
@@ -257,12 +273,16 @@ def review(number, expected_sha=""):
             f"- {name}: {'通過' if ok else '失敗／逾時'}" for name, ok in results.items())
             or "- 無適用的預設測試；詳見上述靜態審查與驗證限制。")
         body += f"\n\n模型：`{config['model']}`；head：`{pr['head']['sha']}`。"
-        if event != result["decision"]:
-            body += "\n\n以留言發布：作者是目前 reviewer 本人，或必要驗證未完成。"
+        if pr["user"]["login"] == login:
+            body += ("\n\n以留言發布：作者是目前 reviewer 本人，GitHub 不允許自我 approve／request changes"
+                     + ("；上列 P1/P2 問題需修正後才可合併。" if has_blocking(result) else "。"))
+        elif event == "COMMENT":
+            body += "\n\n以留言發布：無阻擋問題，但必要驗證未完成或檢查失敗，因此不自動 approve。"
         if os.environ.get("GITHUB_RUN_ID"):
             body += f"\n\n[Actions 執行紀錄](https://github.com/{REPO}/actions/runs/{os.environ['GITHUB_RUN_ID']})"
-        # An incomplete run must remain retryable on the same SHA.
-        if event != "COMMENT" or (all(results.values()) and result["verification_complete"]):
+        # Dedup marker only for complete reviews, independent of the event, so an
+        # incomplete run (even REQUEST_CHANGES) stays retryable on the same SHA.
+        if review_complete(result, all(results.values())):
             body += "\n\n" + marker(pr)
         published = api(endpoint + "/reviews", {"commit_id": pr["head"]["sha"], "event": event, "body": body})
         (job / "published.json").write_text(json.dumps(published, ensure_ascii=False, indent=2))

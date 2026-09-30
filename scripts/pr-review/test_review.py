@@ -63,29 +63,59 @@ class ReviewTests(unittest.TestCase):
             with self.subTest(output=output), self.assertRaises(ValueError):
                 review.parse_result(output)
 
-    def test_findings_must_be_actionable_and_consistent(self):
-        finding = {"priority": "P2", "path": "frontend/src/lib/api.ts", "line": 7,
-                   "body": "回傳型別缺少欄位，會導致正式 API 路徑出錯。"}
-        result = {**self.clean, "decision": "REQUEST_CHANGES", "findings": [finding]}
+    def finding(self, priority="P2"):
+        return {"priority": priority, "path": "frontend/src/lib/api.ts", "line": 7,
+                "body": "回傳型別缺少欄位，會導致正式 API 路徑出錯。"}
+
+    def test_malformed_findings_are_rejected(self):
+        result = {**self.clean, "decision": "REQUEST_CHANGES", "findings": [self.finding()]}
         self.assertEqual(review.parse_result(self.events(result)), result)
-        bad = [self.clean | {"decision": "REQUEST_CHANGES"},
-               self.clean | {"findings": [finding]},
-               result | {"findings": [finding | {"path": "../secret"}]},
-               result | {"findings": [finding | {"line": 0}]},
-               result | {"findings": [finding | {"priority": "P3"}]}]
+        bad = [result | {"findings": [self.finding() | {"path": "../secret"}]},
+               result | {"findings": [self.finding() | {"path": " "}]},
+               result | {"findings": [self.finding() | {"line": 0}]},
+               result | {"findings": [self.finding() | {"priority": "P0"}]},
+               result | {"findings": [self.finding() | {"body": ""}]}]
         for item in bad:
             with self.subTest(item=item), self.assertRaises(ValueError):
                 review.parse_result(self.events(item))
+
+    def test_blocking_findings_request_changes_even_if_verification_incomplete(self):
+        # Regression: PR #11 had two P2 findings but was published as COMMENT.
+        for decision in ["COMMENT", "APPROVE", "REQUEST_CHANGES"]:
+            for checks_ok in [True, False]:
+                result = self.clean | {"decision": decision, "verification_complete": False,
+                                       "findings": [self.finding("P2"), self.finding("P3")]}
+                self.assertEqual(review.publication_decision(result, checks_ok, "author", "reviewer"),
+                                 "REQUEST_CHANGES")
+        p1 = self.clean | {"findings": [self.finding("P1")]}
+        self.assertEqual(review.publication_decision(p1, True, "author", "reviewer"), "REQUEST_CHANGES")
+
+    def test_suggestions_only_do_not_block_approval(self):
+        result = self.clean | {"findings": [self.finding("P3")]}
+        self.assertEqual(review.publication_decision(result, True, "author", "reviewer"), "APPROVE")
+        unsure = self.clean | {"decision": "REQUEST_CHANGES", "findings": [self.finding("P3")]}
+        self.assertEqual(review.publication_decision(unsure, True, "author", "reviewer"), "COMMENT")
 
     def test_failed_checks_or_incomplete_review_cannot_approve(self):
         self.assertEqual(review.publication_decision(self.clean, True, "author", "reviewer"), "APPROVE")
         self.assertEqual(review.publication_decision(self.clean, False, "author", "reviewer"), "COMMENT")
         incomplete = self.clean | {"verification_complete": False}
         self.assertEqual(review.publication_decision(incomplete, True, "author", "reviewer"), "COMMENT")
+        comment = self.clean | {"decision": "COMMENT"}
+        self.assertEqual(review.publication_decision(comment, True, "author", "reviewer"), "COMMENT")
+
+    def test_incomplete_reviews_stay_retryable_regardless_of_event(self):
+        blocking = self.clean | {"decision": "COMMENT", "findings": [self.finding("P2")]}
+        for complete, checks_ok, expected in [(False, True, False), (True, False, False),
+                                               (False, False, False), (True, True, True)]:
+            result = blocking | {"verification_complete": complete}
+            self.assertEqual(review.publication_decision(result, checks_ok, "author", "reviewer"),
+                             "REQUEST_CHANGES")
+            self.assertIs(review.review_complete(result, checks_ok), expected)
 
     def test_own_pr_cannot_approve_or_request_changes(self):
-        for decision in ["APPROVE", "REQUEST_CHANGES"]:
-            result = self.clean | {"decision": decision}
+        for findings in [[], [self.finding("P1")]]:
+            result = self.clean | {"findings": findings}
             self.assertEqual(review.publication_decision(result, True, "owner", "owner"), "COMMENT")
 
 
