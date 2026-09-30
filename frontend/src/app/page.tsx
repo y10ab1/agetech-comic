@@ -48,7 +48,7 @@ export default function LoginPage() {
   return (
     <main id="main">
       <div className="mx-auto max-w-[620px] pt-6 text-center">
-        <ScreenHeading>樂齡時光繪本</ScreenHeading>
+        <ScreenHeading>樂齡漫畫日記</ScreenHeading>
         <p className="mb-10 text-[24px] leading-[1.6]">
           點一下下面的大按鈕，
           <br />
