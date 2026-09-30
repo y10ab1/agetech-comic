@@ -104,6 +104,15 @@ class ReviewTests(unittest.TestCase):
         comment = self.clean | {"decision": "COMMENT"}
         self.assertEqual(review.publication_decision(comment, True, "author", "reviewer"), "COMMENT")
 
+    def test_incomplete_reviews_stay_retryable_regardless_of_event(self):
+        blocking = self.clean | {"decision": "COMMENT", "findings": [self.finding("P2")]}
+        for complete, checks_ok, expected in [(False, True, False), (True, False, False),
+                                               (False, False, False), (True, True, True)]:
+            result = blocking | {"verification_complete": complete}
+            self.assertEqual(review.publication_decision(result, checks_ok, "author", "reviewer"),
+                             "REQUEST_CHANGES")
+            self.assertIs(review.review_complete(result, checks_ok), expected)
+
     def test_own_pr_cannot_approve_or_request_changes(self):
         for findings in [[], [self.finding("P1")]]:
             result = self.clean | {"findings": findings}

@@ -96,6 +96,10 @@ def has_blocking(result):
     return any(f["priority"] in {"P1", "P2"} for f in result["findings"])
 
 
+def review_complete(result, checks_ok):
+    return checks_ok and result["verification_complete"]
+
+
 def publication_decision(result, checks_ok, author, login):
     """Derive the GitHub event from findings, not from the model's free choice.
 
@@ -196,6 +200,9 @@ def review(number, expected_sha=""):
         if context.exists() or context.is_symlink():
             raise RuntimeError("Reserved .review-context path already exists")
         print("Running applicable checks in Docker.", flush=True)
+        # The runner service uses UMask=0077; containers drop CAP_DAC_OVERRIDE,
+        # so make the (public) checkout world-readable for the read-only mount.
+        run(["chmod", "-R", "go+rX", str(source)])
         results = checks(source, changed, job / "checks.log")
         context.mkdir()
         shutil.copyfile(job / "checks.log", context / "checks.log")
@@ -273,8 +280,9 @@ def review(number, expected_sha=""):
             body += "\n\n以留言發布：無阻擋問題，但必要驗證未完成或檢查失敗，因此不自動 approve。"
         if os.environ.get("GITHUB_RUN_ID"):
             body += f"\n\n[Actions 執行紀錄](https://github.com/{REPO}/actions/runs/{os.environ['GITHUB_RUN_ID']})"
-        # An incomplete run must remain retryable on the same SHA.
-        if event != "COMMENT" or (all(results.values()) and result["verification_complete"]):
+        # Dedup marker only for complete reviews, independent of the event, so an
+        # incomplete run (even REQUEST_CHANGES) stays retryable on the same SHA.
+        if review_complete(result, all(results.values())):
             body += "\n\n" + marker(pr)
         published = api(endpoint + "/reviews", {"commit_id": pr["head"]["sha"], "event": event, "body": body})
         (job / "published.json").write_text(json.dumps(published, ensure_ascii=False, indent=2))

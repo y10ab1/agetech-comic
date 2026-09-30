@@ -77,7 +77,7 @@ systemctl --user disable --now agetech-opencode-runner
 
 Actions 頁面顯示 job 狀態與發布的 review URL。完整模型輸出、檢查日誌與 review JSON
 僅存於本機 `~/.local/share/agetech-pr-review/jobs/`；原始碼 checkout 在完成後清除。
-模型或測試環境修好後可以手動重跑；未完成的 COMMENT 不會阻擋再次審查。
+模型或測試環境修好後可以手動重跑；驗證未完成的審查（包含 REQUEST_CHANGES）不會阻擋同一版本再次審查。
 
 ## 驗證 controller
 
