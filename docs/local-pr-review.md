@@ -16,7 +16,7 @@ GitHub Actions 的 `Local OpenCode PR review` workflow 在 PR 開啟、有新 co
 ## 審查與發布
 
 - 用本機 `~/.opencode/bin/opencode` 與既有模型憑證；模型固定為
-  `amazon-bedrock/global.openai.gpt-6-astra`。
+  `amazon-bedrock/global.anthropic.claude-sonnet-5-5`。
 - 每次建立新的 OpenCode session 和獨立 checkout，不影響開發工作目錄。
 - 收集完整 diff、PR 討論、既有 reviews、開啟中及 PR body 引用的 issues。
 - OpenCode 的工具僅允許工作目錄內的讀檔搜尋。停用 project config、外部 plugins、
