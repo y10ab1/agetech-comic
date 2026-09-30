@@ -14,6 +14,7 @@ import { DEFAULT_NARRATOR_ID, getNarrator } from "./narrator";
 import type {
   DisplayScript,
   Expression,
+  QuadrantCaptions,
   QuestionOption,
   ScriptSegment,
   Selections,
@@ -107,18 +108,42 @@ export function adaptComicResult(
       alt: p.alt_text || p.caption || "漫畫分格",
       caption: p.caption,
     }));
+  // 後端允許空 panels（生圖 fallback 且未持久化）：補佔位圖，
+  // 避免劇場整張圖無聲消失、share 頁取 panels[0] 出錯
+  if (panels.length === 0) {
+    panels.push({
+      src: "/assets/comics/panel-placeholder.svg",
+      alt: "漫畫準備中",
+      caption: "",
+    });
+  }
 
-  const sentences = splitNarration(result.narration || result.summary);
-  const segments: ScriptSegment[] = sentences.map((text, i) => {
-    const isLast = i === sentences.length - 1;
-    return {
-      text,
-      expression: isLast ? "laugh" : "smile",
-      // 單張四格圖：panelIndex 為象限 0–3（依句序推進，尾句停在第四格）
-      panelIndex: Math.min(i, 3),
-      accent: isLast,
-    };
-  });
+  const raw = result.quadrant_captions;
+  const quadrantCaptions: QuadrantCaptions | undefined =
+    raw && raw.length === 4 ? [raw[0], raw[1], raw[2], raw[3]] : undefined;
+
+  // 象限對位只信任結構化來源：有 quadrant_captions 時逐格生成 segments，
+  // panelIndex 由結構保證；沒有（舊後端）則切句照播但不高亮——
+  // 句序不是可靠的象限對應，寧可不框也不框錯格
+  const segments: ScriptSegment[] = quadrantCaptions
+    ? quadrantCaptions.flatMap((caption, quadrant) =>
+        splitNarration(caption).map(
+          (text): ScriptSegment => ({
+            text,
+            expression: "smile",
+            panelIndex: quadrant,
+          }),
+        ),
+      )
+    : splitNarration(result.narration || result.summary).map(
+        (text): ScriptSegment => ({ text, expression: "smile" }),
+      );
+  // 最後一句作為高潮 accent
+  const last = segments[segments.length - 1];
+  if (last) {
+    last.expression = "laugh";
+    last.accent = true;
+  }
 
   return {
     loglineText: buildLogline(flow.selections, flow.events),
@@ -127,6 +152,7 @@ export function adaptComicResult(
     narratorId: narrator.id,
     narratorName: narrator.name,
     panels,
+    quadrantCaptions,
     segments,
   };
 }
@@ -197,7 +223,7 @@ export function generateMockScript(flow: FlowSnapshot): DisplayScript {
       caption: "",
     },
   ];
-  const quadrantCaptions = [
+  const quadrantCaptions: QuadrantCaptions = [
     `今天一早醒來，心情${mood}。`,
     `${placeNarrative}。`,
     `${eventCaption}，好開心。`,
@@ -205,10 +231,10 @@ export function generateMockScript(flow: FlowSnapshot): DisplayScript {
   ];
 
   const segments: ScriptSegment[] = [];
+  // 開場問候是元敘事、不對應任何畫面：panelIndex 留空（不高亮）
   segments.push({
     text: `${salutation}，今天讓${name}來說說您的故事。`,
     expression: "smile",
-    panelIndex: 0,
   });
   segments.push({
     text: `今天一早醒來，您的心情${mood}。`,
@@ -280,11 +306,11 @@ export function buildMemoryScript(
   const place = labels.find((l) => PLACE_LABELS.has(l));
   const eventLabels = labels.filter((l) => l !== mood && l !== place);
 
+  // 開場問候是元敘事、不對應任何畫面：panelIndex 留空（不高亮）
   const segments: ScriptSegment[] = [
     {
       text: `${salutation}，還記得${dateText}這一天嗎？讓${name}再說一次給您聽。`,
       expression: "smile",
-      panelIndex: 0,
     },
   ];
   if (mood) {

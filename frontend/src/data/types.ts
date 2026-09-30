@@ -32,6 +32,9 @@ export interface ScriptSegment {
   accent?: boolean;
 }
 
+/** 四個象限的圖說（閱讀順序左上→右上→左下→右下，恰 4 筆） */
+export type QuadrantCaptions = [string, string, string, string];
+
 /** 前端顯示用的漫畫格 */
 export interface DisplayPanel {
   src: string;
@@ -49,7 +52,7 @@ export interface DisplayScript {
   /** 單張四格圖策略（api-contract-additions.md §1-1）：正常僅 1 個元素 */
   panels: DisplayPanel[];
   /** 四個象限的圖說（依閱讀順序）；後端未提供時省略，改顯示 panels[0].caption */
-  quadrantCaptions?: string[];
+  quadrantCaptions?: QuadrantCaptions;
   segments: ScriptSegment[];
 }
 
@@ -73,5 +76,5 @@ export interface StampRecord {
   /** 當天的漫畫格（落章時寫入；舊資料缺漏時內頁顯示封面佔位圖） */
   panels?: DisplayPanel[];
   /** 單張四格圖的象限圖說（落章時寫入；panels 為多張的舊資料不適用） */
-  quadrantCaptions?: string[];
+  quadrantCaptions?: QuadrantCaptions;
 }

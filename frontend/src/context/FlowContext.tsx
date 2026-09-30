@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { QuestionOption, Selections } from "@/data/types";
+import type { DisplayScript, QuestionOption, Selections } from "@/data/types";
 import { DEFAULT_NARRATOR_ID } from "@/data/narrator";
 import { loadProfile, saveSalutation } from "@/data/profile";
 
@@ -20,6 +20,12 @@ interface FlowState {
   styleId: string;
   selections: Selections;
   events: QuestionOption[];
+  /**
+   * 本次生成的劇場腳本（theater 寫入）。share 落章沿用同一份，
+   * 真 API 的 panels／segments／quadrantCaptions 才會被保存與重播。
+   */
+  script: DisplayScript | null;
+  setScript: (s: DisplayScript | null) => void;
   login: (userId: string) => void;
   logout: () => void;
   setSalutation: (s: string) => void;
@@ -43,6 +49,7 @@ export function FlowProvider({ children }: { children: ReactNode }) {
   const [styleId, setStyleId] = useState("");
   const [selections, setSelections] = useState<Selections>({});
   const [events, setEvents] = useState<QuestionOption[]>([]);
+  const [script, setScript] = useState<DisplayScript | null>(null);
 
   // 掛載後從 profile 水合稱呼（已註冊用戶直接進主流程仍有稱呼）
   useEffect(() => {
@@ -60,6 +67,8 @@ export function FlowProvider({ children }: { children: ReactNode }) {
       styleId,
       selections,
       events,
+      script,
+      setScript,
       login: (id) => {
         if (typeof window !== "undefined") localStorage.setItem(USER_KEY, id);
         setUserId(id);
@@ -87,9 +96,10 @@ export function FlowProvider({ children }: { children: ReactNode }) {
         setSelections({});
         setEvents([]);
         setStyleId("");
+        setScript(null);
       },
     }),
-    [userId, salutation, narratorId, styleId, selections, events],
+    [userId, salutation, narratorId, styleId, selections, events, script],
   );
 
   return <FlowCtx.Provider value={value}>{children}</FlowCtx.Provider>;
