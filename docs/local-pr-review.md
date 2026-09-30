@@ -25,7 +25,8 @@ GitHub Actions 的 `Local OpenCode PR review` workflow 在 PR 開啟、有新 co
   後端變更在 Python container 執行 pytest；shared 變更兩者皆跑。
   Controller 變更執行 Python unittest。容器不掛 Docker socket 或 host home。
 - OpenCode 產出 JSON 結果，controller 嚴格驗證後發布正式 GitHub review。
-  無阻擋問題且必要驗證完成才 APPROVE；具體阻擋問題 REQUEST_CHANGES；驗證不足 COMMENT。
+  結論由 controller 依 findings 決定：有任何 P1/P2 → REQUEST_CHANGES（即使部分驗證未完成）；
+  無 P1/P2、檢查通過且驗證完成 → APPROVE（可附 P3 建議）；其餘 → COMMENT。
   模型錯誤、JSON 不完整或執行中斷會讓 job 失敗，不會 approve。
 - 以本機 `gh` 的登入帳號發布。GitHub 不允許自我 approve / request changes，
   因此自己開的 PR 一律以 COMMENT 發布。
@@ -88,4 +89,4 @@ REVIEW_PR=11 REVIEW_DRY_RUN=1 python3 scripts/pr-review/review.py
 ```
 
 涵蓋 draft/作者過濾、協作者 fork、SHA 變更、重複 review、模型錯誤與截斷輸出、
-不合法 findings、驗證失敗禁止 approve、自我 review 降為 COMMENT。
+不合法 findings、P1/P2 一律 request changes、驗證失敗禁止 approve、自我 review 降為 COMMENT。
