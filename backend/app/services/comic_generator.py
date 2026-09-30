@@ -37,15 +37,52 @@ class ComicGenerator:
         head = summary.split("，")[0].split(" ")[0].strip()
         return head[:20] or "今天的故事"
 
-    async def build_narration(self, summary: str) -> str:
-        """整張四格圖的無障礙口述影像。TODO: 交給 LLM 生成分格描述。"""
+    async def build_quadrant_captions(self, summary: str) -> list[str]:
+        """四個象限的圖說（閱讀順序左上→右上→左下→右下，恰 4 筆）。
+
+        TODO: 交給 LLM 依實際生成畫面撰寫。目前規則式：前端送來的
+        結構化 logline（「心情 + 地點 + 事件…」）依「晨起心情→出門
+        地點→當日事件→滿足收尾」的固定四格敘事分配；非結構化輸入
+        （自由文字）各欄位缺漏時退回通用句。
+        """
+        parts = [p.strip() for p in summary.split("+") if p.strip()]
+        mood = parts[0] if parts else ""
+        place = parts[1] if len(parts) > 1 else ""
+        events = "、".join(parts[2:])
+        if place == "待在家裡":
+            place_caption = "在家裡好好休息。"
+        elif place:
+            place_caption = f"出門來到了{place}。"
+        else:
+            place_caption = "出門走走，看看外面的風景。"
+        return [
+            f"今天一早醒來，心情{mood}。" if mood else "今天一早醒來，精神很好。",
+            place_caption,
+            f"{events}，好開心。" if events else "做了幾件開心的事。",
+            "滿足地回到家，真是美好的一天。",
+        ]
+
+    async def build_narration(
+        self, summary: str, quadrant_captions: list[str] | None = None
+    ) -> str:
+        """整張四格圖的無障礙口述影像。TODO: 交給 LLM 生成。
+
+        有象限圖說時由其組成逐格口述，與劇場高亮同步的內容一致。
+        """
+        if quadrant_captions and len(quadrant_captions) == 4:
+            body = "".join(
+                f"第{num}格，{caption}"
+                for num, caption in zip("一二三四", quadrant_captions)
+            )
+            return f"這是一張四格漫畫，描繪您今天的故事。{body}"
         return f"這是一張四格漫畫，描繪您今天的故事：{summary}"
 
     async def create_comic(self, entry: DiaryEntry) -> ComicResult:
         """完整流程：日記 → 四格漫畫（→ 持久化）。"""
         summary = await self.summarize(entry.text)
         title = await self.build_title(summary)
-        narration = await self.build_narration(summary)
+        quadrant_captions = await self.build_quadrant_captions(summary)
+        narration = await self.build_narration(summary, quadrant_captions)
 
         # 1) 生成單張四格漫畫圖
         image_bytes: bytes | None = None
@@ -87,6 +124,7 @@ class ComicGenerator:
             summary=summary,
             panels=panels,
             narration=narration,
+            quadrant_captions=quadrant_captions,
             title=title,
             tags=[],
             cover_url=cover_url,

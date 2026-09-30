@@ -34,8 +34,15 @@ const RATE_LABEL: Record<SpeechRate, string> = {
  */
 export default function TheaterPage() {
   const router = useRouter();
-  const { userId, salutation, selections, events, narratorId, styleId } =
-    useFlow();
+  const {
+    userId,
+    salutation,
+    selections,
+    events,
+    narratorId,
+    styleId,
+    setScript: setFlowScript,
+  } = useFlow();
   const narrator = getNarrator(narratorId);
   const speech = useSpeech(0.8);
 
@@ -58,6 +65,8 @@ export default function TheaterPage() {
         if (!alive) return;
         scriptRef.current = s;
         setScript(s);
+        // 同步進 FlowContext：share 落章沿用同一份（真 API 結果才會被保存）
+        setFlowScript(s);
         setPhase("ready");
       })
       .catch(() => {
@@ -236,6 +245,7 @@ export default function TheaterPage() {
               <ComicPanels
                 title={`${salutation || "阿公阿嬤"}的四格漫畫：${script.loglineText}`}
                 panels={script.panels}
+                quadrantCaptions={script.quadrantCaptions}
                 activeIndex={isPlaybackActive ? seg?.panelIndex ?? -1 : -1}
               />
               <section
@@ -246,12 +256,11 @@ export default function TheaterPage() {
                 {script.segments.map((s, i) => (
                   <p
                     key={i}
-                    className="mb-3 rounded-lg px-2 py-1 text-[20px] leading-[1.6]"
-                    style={
+                    className={`story__line mb-3 rounded-lg px-2 py-1 text-[20px] leading-[1.6] ${
                       isPlaybackActive && i === segIndex
-                        ? { background: "#fff3c4", fontWeight: 700 }
-                        : undefined
-                    }
+                        ? "story__line--active"
+                        : ""
+                    }`}
                   >
                     {s.text}
                   </p>

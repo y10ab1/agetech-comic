@@ -59,6 +59,10 @@ def test_generate_comic_contract_fields(client, monkeypatch) -> None:
     assert "title" in data
     assert "tags" in data
     assert "cover_url" in data
+    # 象限圖說：恰 4 筆非空字串，且 narration 由其組成（劇場逐格同步的資料來源）
+    assert len(data["quadrant_captions"]) == 4
+    assert all(isinstance(c, str) and c for c in data["quadrant_captions"])
+    assert data["quadrant_captions"][0] in data["narration"]
     # fallback 情況下沒有圖，panels 為空
     assert data["panels"] == []
 

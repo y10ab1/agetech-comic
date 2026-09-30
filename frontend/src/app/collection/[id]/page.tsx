@@ -29,6 +29,23 @@ const RATE_LABEL: Record<SpeechRate, string> = {
 
 const COVER_PLACEHOLDER = "/assets/comics/cover-placeholder.svg";
 
+/** 讀取印章並備妥腳本（沒存 segments 的印章由 logline 重建回憶重述） */
+function loadDiaryView(id: string): {
+  stamp: StampRecord | null;
+  segments: ScriptSegment[];
+} {
+  const stamp = loadStamps().find((s) => s.id === id) ?? null;
+  if (!stamp) return { stamp: null, segments: [] };
+  const segments = stamp.segments?.length
+    ? stamp.segments
+    : buildMemoryScript(
+        stamp,
+        loadProfile()?.salutation || DEFAULT_SALUTATION,
+        stampDateText(stamp.createdAt),
+      );
+  return { stamp, segments };
+}
+
 /**
  * 回憶內頁 —— 集章存摺點進單枚印章，重溫那一天的漫畫與故事。
  * 有存 segments 的印章原句重播（與當天劇場一字不差）；
@@ -48,20 +65,11 @@ export default function DiaryDetailPage() {
   const segmentsRef = useRef<ScriptSegment[]>([]);
 
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect */
-    const found = loadStamps().find((s) => s.id === id) ?? null;
+    const { stamp: found, segments: segs } = loadDiaryView(id);
+    segmentsRef.current = segs;
+    /* eslint-disable react-hooks/set-state-in-effect -- 掛載後讀 localStorage（避免 SSR/hydration 不一致） */
     setStamp(found);
-    if (found) {
-      const segs = found.segments?.length
-        ? found.segments
-        : buildMemoryScript(
-            found,
-            loadProfile()?.salutation || DEFAULT_SALUTATION,
-            stampDateText(found.createdAt),
-          );
-      segmentsRef.current = segs;
-      setSegments(segs);
-    }
+    setSegments(segs);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [id]);
 
@@ -140,11 +148,13 @@ export default function DiaryDetailPage() {
         </div>
         <ScreenHeading>{title}</ScreenHeading>
 
-        {/* 漫畫：有存 panels 原樣重現（朗讀逐格高亮）；沒存的顯示封面 */}
+        {/* 漫畫：有存 panels 原樣重現——單張四格圖走象限高亮＋圖說列，
+            舊 4 格資料由 ComicPanels 自動退回逐格渲染；沒存的顯示封面 */}
         {hasPanels ? (
           <ComicPanels
             title={`「${title}」的四格漫畫`}
             panels={stamp.panels!}
+            quadrantCaptions={stamp.quadrantCaptions}
             activeIndex={isPlaybackActive ? seg?.panelIndex ?? -1 : -1}
           />
         ) : (
@@ -243,12 +253,9 @@ export default function DiaryDetailPage() {
             {segments.map((s, i) => (
               <p
                 key={i}
-                className="mb-3 rounded-lg px-2 py-1 text-[20px] leading-[1.6]"
-                style={
-                  isPlaybackActive && i === segIndex
-                    ? { background: "#fff3c4", fontWeight: 700 }
-                    : undefined
-                }
+                className={`story__line mb-3 rounded-lg px-2 py-1 text-[20px] leading-[1.6] ${
+                  isPlaybackActive && i === segIndex ? "story__line--active" : ""
+                }`}
               >
                 {s.text}
               </p>

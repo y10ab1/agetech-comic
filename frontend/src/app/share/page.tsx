@@ -23,16 +23,27 @@ import type { StampRecord } from "@/data/types";
  */
 export default function SharePage() {
   const router = useRouter();
-  const { userId, salutation, selections, events, narratorId, styleId, reset } =
-    useFlow();
+  const {
+    userId,
+    salutation,
+    selections,
+    events,
+    narratorId,
+    styleId,
+    script: flowScript,
+    reset,
+  } = useFlow();
   const [greeting, setGreeting] = useState("");
   const [sharing, setSharing] = useState(false);
   const [rewards, setRewards] = useState<string[]>([]);
   const savedRef = useRef(false);
 
   const complete = isComplete(selections, events);
+  // 沿用劇場生成的同一份腳本（真 API 的 panels／圖說才會落章保存）；
+  // 直接進本頁（無劇場腳本）時退回 mock，維持可展示
   const script = complete
-    ? generateMockScript({ userId, salutation, selections, events, narratorId })
+    ? (flowScript ??
+      generateMockScript({ userId, salutation, selections, events, narratorId }))
     : null;
   const narrator = getNarrator(narratorId);
 
@@ -57,6 +68,7 @@ export default function SharePage() {
       // 存下逐句腳本與漫畫格，讓集章內頁能原句重播（回憶內頁）
       segments: script.segments,
       panels: script.panels,
+      quadrantCaptions: script.quadrantCaptions,
     };
     const list = addStamp(record);
     // 消耗一次生成、依累計章數發里程碑獎勵
@@ -102,7 +114,7 @@ export default function SharePage() {
 
         <figure className="mb-7 text-center">
           <img
-            className="mx-auto w-[240px] max-w-[70%] rounded-[var(--radius)] border-[3px] border-[color:var(--color-neutral-border)]"
+            className="mx-auto w-[320px] max-w-[92%] rounded-[var(--radius)] border-[3px] border-[color:var(--color-neutral-border)]"
             src={script.panels[0].src}
             alt={script.panels[0].alt}
           />
