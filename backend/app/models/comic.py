@@ -47,6 +47,11 @@ class ComicResult(BaseModel):
     panels: list[ComicPanel] = Field(default_factory=list)
     # 整篇漫畫的口述影像（無障礙）
     narration: str = Field("", description="整篇漫畫的無障礙口述內容")
+    # 單張四格圖的象限圖說（前端劇場逐格高亮同步的資料來源）
+    quadrant_captions: list[str] = Field(
+        default_factory=list,
+        description="四個象限的圖說，閱讀順序左上→右上→左下→右下（恰 4 筆；無法提供時為空）",
+    )
     # 契約增補（P0）
     title: str = Field("", description="AI 依故事內容下的標題（集章存摺卡片顯示用）")
     tags: list[str] = Field(
