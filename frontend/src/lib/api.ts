@@ -96,13 +96,21 @@ export async function generateComic(
     headers["X-Debug-User"] = options.debugUser;
   }
 
-  const res = await fetch(`${API_BASE_URL}/comics/generate`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(entry),
-    // 生圖約 30–60 秒；超過 3 分鐘視為失敗，讓劇場顯示「再試一次」而非無限等待
-    signal: AbortSignal.timeout(180_000),
-  });
+  // 生圖約 30–60 秒；超過 3 分鐘視為失敗，讓劇場顯示「再試一次」而非無限等待。
+  // 不用 AbortSignal.timeout：舊版 Safari／Android WebView（長輩手機、LINE 內建瀏覽器）沒有
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 180_000);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/comics/generate`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(entry),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!res.ok) {
     throw new Error(`漫畫生成失敗：${res.status}`);

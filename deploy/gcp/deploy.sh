@@ -30,6 +30,8 @@ VERTEX_IMAGE_MODEL="${VERTEX_IMAGE_MODEL:-gemini-3-pro-image}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 TAG="$(git -C "$ROOT" rev-parse --short HEAD)$(git -C "$ROOT" diff --quiet HEAD -- . ':!deploy' || echo -dirty)"
 G="gcloud --project=${PROJECT} --quiet"
+# PocketBase VM 的 SSH 只允許經 IAP（見 infra 的防火牆規則）
+SSH="$G compute ssh $PB_VM --zone=$ZONE --tunnel-through-iap"
 
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 
@@ -75,22 +77,32 @@ infra() {
   $G compute resource-policies describe "$PB_SNAPSHOT_POLICY" --region="$REGION" >/dev/null 2>&1 \
     || $G compute resource-policies create snapshot-schedule "$PB_SNAPSHOT_POLICY" --region="$REGION" \
          --daily-schedule --start-time=18:00 --max-retention-days=14 --on-source-disk-delete=keep-auto-snapshots
+  # SSH 只開 IAP 來源：專案預設的 default-allow-ssh 對 0.0.0.0/0 開 22，
+  # 以較高優先序（數字較小）的規則覆蓋 agetech-pb 標籤的 VM。8090 沒有任何對外規則。
+  $G compute firewall-rules describe agetech-pb-ssh-iap >/dev/null 2>&1 \
+    || $G compute firewall-rules create agetech-pb-ssh-iap --network=default --direction=INGRESS \
+         --priority=800 --action=ALLOW --rules=tcp:22 --source-ranges=35.235.240.0/20 --target-tags=agetech-pb
+  $G compute firewall-rules describe agetech-pb-ssh-deny >/dev/null 2>&1 \
+    || $G compute firewall-rules create agetech-pb-ssh-deny --network=default --direction=INGRESS \
+         --priority=900 --action=DENY --rules=tcp:22 --source-ranges=0.0.0.0/0 --target-tags=agetech-pb
   if ! $G compute instances describe "$PB_VM" --zone="$ZONE" >/dev/null 2>&1; then
     $G compute instances create "$PB_VM" --zone="$ZONE" --machine-type=e2-small \
       --image-family=debian-12 --image-project=debian-cloud \
       --boot-disk-size=20GB --boot-disk-type=pd-balanced \
       --private-network-ip="$(pb_internal_ip)" --subnet=default \
-      --no-service-account --no-scopes --shielded-secure-boot \
+      --no-service-account --no-scopes --shielded-secure-boot --tags=agetech-pb \
       --labels=app=agetech-comic,role=pocketbase
     $G compute disks add-resource-policies "$PB_VM" --zone="$ZONE" \
       --resource-policies="$PB_SNAPSHOT_POLICY" --region="$REGION" 2>/dev/null \
       || $G compute disks add-resource-policies "$PB_VM" --zone="$ZONE" --resource-policies="$PB_SNAPSHOT_POLICY"
     log "等待 VM 開機"
     for _ in $(seq 1 30); do
-      $G compute ssh "$PB_VM" --zone="$ZONE" --command=true >/dev/null 2>&1 && break
+      $SSH --command=true >/dev/null 2>&1 && break
       sleep 5
     done
   fi
+  # 既有 VM 補上標籤（讓上面的 SSH 規則生效）
+  $G compute instances add-tags "$PB_VM" --zone="$ZONE" --tags=agetech-pb >/dev/null
 }
 
 pb() {
@@ -98,13 +110,12 @@ pb() {
   local tmp
   tmp="$(mktemp -d)"
   cp "$ROOT"/pocketbase/pb_migrations/*.js "$ROOT/deploy/gcp/pb_vm_setup.sh" "$tmp/"
-  $G compute ssh "$PB_VM" --zone="$ZONE" --command="rm -rf ~/pb_staging && mkdir -p ~/pb_staging"
-  $G compute scp "$tmp"/* "$PB_VM:~/pb_staging/" --zone="$ZONE"
+  $SSH --command="rm -rf ~/pb_staging && mkdir -p ~/pb_staging"
+  $G compute scp "$tmp"/* "$PB_VM:~/pb_staging/" --zone="$ZONE" --tunnel-through-iap
   rm -rf "$tmp"
   # 密碼走 stdin，不出現在指令列／process list
   $G secrets versions access latest --secret="$PB_PASSWORD_SECRET" \
-    | $G compute ssh "$PB_VM" --zone="$ZONE" \
-        --command="sudo bash ~/pb_staging/pb_vm_setup.sh '${PB_VERSION}' '${PB_ADMIN_EMAIL}'"
+    | $SSH --command="sudo bash ~/pb_staging/pb_vm_setup.sh '${PB_VERSION}' '${PB_ADMIN_EMAIL}'"
 }
 
 build_push() { # name dockerfile context [build-args...]
