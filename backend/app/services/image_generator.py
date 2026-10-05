@@ -48,19 +48,36 @@ class VertexImageGenerator:
             )
         return self._client
 
-    def build_prompt(self, summary: str, style: str | None) -> str:
-        """把當天故事總結組成四格漫畫的生圖 prompt。"""
+    def build_prompt(
+        self, summary: str, style: str | None, panel_plan: list[str] | None = None
+    ) -> str:
+        """把當天故事總結組成四格漫畫的生圖 prompt。
+
+        panel_plan（恰 4 筆）為逐格內容，與回傳給前端的 quadrant_captions 同源，
+        讓畫面與象限圖說對位；未提供時只給整體故事、不指定分格。
+        """
         style_desc = _STYLE_PROMPTS.get(style or _DEFAULT_STYLE, _STYLE_PROMPTS[_DEFAULT_STYLE])
+        plan = ""
+        if panel_plan and len(panel_plan) == 4:
+            positions = ["左上", "右上", "左下", "右下"]
+            plan = "".join(
+                f"第{i + 1}格（{pos}）：{text}\n"
+                for i, (pos, text) in enumerate(zip(positions, panel_plan))
+            )
+            plan = "四格內容依閱讀順序，請嚴格照此分配、不要加入其他情節：\n" + plan
         return (
             "請生成一張圖，內含 2x2 排列的四格漫畫（四格連環漫畫），"
             "描繪一位台灣長輩今天的溫馨日常故事。\n"
             f"故事內容：{summary}\n"
+            f"{plan}"
             f"畫風：{style_desc}。\n"
             "要求：四格之間有清楚的分隔線；角色造型在四格中保持一致；"
             "溫暖正向、適合長輩觀看；畫面乾淨、無文字或僅極少文字。"
         )
 
-    async def generate_comic_image(self, summary: str, style: str | None) -> bytes:
+    async def generate_comic_image(
+        self, summary: str, style: str | None, panel_plan: list[str] | None = None
+    ) -> bytes:
         """生成單張四格漫畫圖，回傳 PNG bytes。
 
         同步呼叫 Vertex（generate_content 本身同步），以 threadpool 包裝避免
@@ -70,7 +87,7 @@ class VertexImageGenerator:
 
         from google.genai.types import GenerateContentConfig, Modality
 
-        prompt = self.build_prompt(summary, style)
+        prompt = self.build_prompt(summary, style, panel_plan)
 
         def _call() -> bytes:
             client = self._get_client()

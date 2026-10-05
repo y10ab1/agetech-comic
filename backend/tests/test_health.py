@@ -35,7 +35,7 @@ def test_generate_comic_contract_fields(client, monkeypatch) -> None:
     # 讓 Vertex 生圖丟錯 → 走 fallback（不產圖、不持久化）
     from app.services import image_generator
 
-    async def _boom(self, summary, style):
+    async def _boom(self, summary, style, panel_plan=None):
         raise image_generator.ImageGenerationError("test: no GCP")
 
     monkeypatch.setattr(
@@ -59,10 +59,9 @@ def test_generate_comic_contract_fields(client, monkeypatch) -> None:
     assert "title" in data
     assert "tags" in data
     assert "cover_url" in data
-    # 象限圖說：恰 4 筆非空字串，且 narration 由其組成（劇場逐格同步的資料來源）
-    assert len(data["quadrant_captions"]) == 4
-    assert all(isinstance(c, str) and c for c in data["quadrant_captions"])
-    assert data["quadrant_captions"][0] in data["narration"]
+    # 自由文字無可靠分格：不給象限圖說，旁白保留原文
+    assert data["quadrant_captions"] == []
+    assert "今天去公園散步，還餵了鴿子。" in data["narration"]
     # fallback 情況下沒有圖，panels 為空
     assert data["panels"] == []
 
@@ -71,3 +70,58 @@ def test_diaries_requires_user(client) -> None:
     """未帶身分時 /me/diaries 回 401。"""
     response = client.get("/me/diaries")
     assert response.status_code == 401
+
+
+def _gen():
+    from app.services.comic_generator import ComicGenerator
+
+    return ComicGenerator(get_settings())
+
+
+@pytest.mark.anyio
+async def test_quadrant_captions_structured_logline() -> None:
+    """結構化 logline：恰 4 筆，只用輸入內容；narration 由其組成。"""
+    gen = _gen()
+    caps = await gen.build_quadrant_captions("高興 + 樂齡中心 + 朋友·泡茶聊天 + 運動")
+    assert caps == [
+        "今天的心情：高興。",
+        "今天去了樂齡中心。",
+        "和朋友泡茶聊天。",
+        "還有運動。",
+    ]
+    narration = await gen.build_narration("x", caps)
+    assert all(c in narration for c in caps)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "text",
+    ["今天整天待在家裡休息，沒有出門。", "高興 + 菜市場", "高興 +  + 運動", ""],
+)
+async def test_quadrant_captions_no_fabrication(text) -> None:
+    """非結構化或不完整輸入：不捏造情節，回空 list、旁白保留原文。"""
+    gen = _gen()
+    assert await gen.build_quadrant_captions(text) == []
+    narration = await gen.build_narration(text, [])
+    assert "出門走走" not in narration and "回到家" not in narration
+    assert text in narration
+
+
+@pytest.mark.anyio
+async def test_home_logline_has_no_outing() -> None:
+    """待在家裡＋單一事件：不出現出門／回家等輸入沒有的情節。"""
+    caps = await _gen().build_quadrant_captions("有點累 + 待在家裡 + 煮好菜")
+    joined = "".join(caps)
+    assert caps[1] == "今天待在家裡。"
+    assert "出門" not in joined and "回到家" not in joined and "開心" not in joined
+
+
+def test_prompt_shares_panel_plan() -> None:
+    """生圖 prompt 帶入與圖說同源的四格配置。"""
+    from app.services.image_generator import VertexImageGenerator
+
+    plan = ["a", "b", "c", "d"]
+    prompt = VertexImageGenerator(get_settings()).build_prompt("s", None, plan)
+    for pos, text in zip(["左上", "右上", "左下", "右下"], plan):
+        assert f"（{pos}）：{text}" in prompt
+    assert "左上" not in VertexImageGenerator(get_settings()).build_prompt("s", None)
