@@ -289,3 +289,30 @@ def test_compress_comic_webp() -> None:
     data, name, mime = compress_comic(buf.getvalue())
     assert (name, mime) == ("comic.webp", "image/webp") and data[8:12] == b"WEBP"
     assert compress_comic(b"not-an-image") == (b"not-an-image", "comic.png", "image/png")
+
+
+def test_generate_prod_failures_return_502(client, monkeypatch) -> None:
+    """正式（IMAGE_GEN_FALLBACK=false）：生圖或存檔失敗回 502，不回沒有圖的漫畫。"""
+    from app.services import image_generator, pocketbase_client
+
+    monkeypatch.setenv("IMAGE_GEN_FALLBACK", "false")
+    monkeypatch.setenv("PERSIST_DIARIES", "true")
+    get_settings.cache_clear()
+
+    async def _img(self, summary, style, panel_plan=None):
+        return b"not-a-real-png"
+
+    async def _pb_fail(self, **kwargs):
+        raise pocketbase_client.PocketBaseError("test: pb down")
+
+    monkeypatch.setattr(image_generator.VertexImageGenerator, "generate_comic_image", _img)
+    monkeypatch.setattr(pocketbase_client.PocketBaseClient, "create_diary", _pb_fail)
+    body = {"user_id": "u", "text": "高興 + 菜市場 + 買菜"}
+    r = client.post("/comics/generate", json=body)
+    assert r.status_code == 502
+
+    async def _boom(self, summary, style, panel_plan=None):
+        raise image_generator.ImageGenerationError("test: vertex down")
+
+    monkeypatch.setattr(image_generator.VertexImageGenerator, "generate_comic_image", _boom)
+    assert client.post("/comics/generate", json=body).status_code == 502

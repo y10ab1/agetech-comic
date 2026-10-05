@@ -194,6 +194,10 @@ class ComicGenerator:
                 )
                 image_url = cover_url
             except PocketBaseError as exc:
+                # 正式（不允許 fallback）：沒存成功就沒有可公開的圖片網址，
+                # 回錯讓前端顯示「再試一次」，而不是回一份沒有圖的漫畫去落章
+                if not self._settings.image_gen_fallback:
+                    raise
                 logger.warning("日記持久化失敗（不中斷生成）：%s", exc)
 
         # 3) 組回傳結果（單張四格圖 → panels 只放 1 元素）

@@ -1,12 +1,16 @@
 """供前端（Next.js / LIFF）使用的漫畫與日記 API 路由。"""
 
+import logging
+
 from fastapi import APIRouter, Header, HTTPException
 
 from app.core.config import get_settings
 from app.models.comic import ComicResult, DiaryEntry, DiaryListResponse
 from app.services.comic_generator import ComicGenerator
+from app.services.image_generator import ImageGenerationError
 from app.services.pocketbase_client import PocketBaseClient, PocketBaseError
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["comics"])
 
 
@@ -31,7 +35,11 @@ async def generate_comic(
     if debug_user:
         entry.user_id = debug_user
     generator = ComicGenerator(get_settings())
-    return await generator.create_comic(entry)
+    try:
+        return await generator.create_comic(entry)
+    except (ImageGenerationError, PocketBaseError) as exc:
+        logger.error("漫畫生成失敗：%s", exc)
+        raise HTTPException(status_code=502, detail="漫畫生成失敗，請再試一次") from exc
 
 
 @router.get("/me/diaries", response_model=DiaryListResponse)
