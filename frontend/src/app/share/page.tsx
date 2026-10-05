@@ -105,7 +105,7 @@ export default function SharePage() {
       const imageUrl =
         panel && !panel.placeholder && /^https?:\/\//.test(panel.src)
           ? panel.src
-          : undefined;
+          : window.location.origin; // 沒有圖時分享網站本身（LINE it! 以 url 為主要參數）
       window.open(lineShareUrl(text, imageUrl), "_blank", "noopener");
       setGreeting(text);
       return;

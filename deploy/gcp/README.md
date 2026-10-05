@@ -25,7 +25,7 @@
 - PocketBase 不對外：瀏覽器拿到的圖檔網址是後端的 `/api/files/...`（`backend/app/api/files.py` 代理，只轉發檔案 GET）。
 - 正式環境 `ENV=prod`：`X-Debug-User` 無效；`IMAGE_GEN_FALLBACK=false`，生圖失敗時前端顯示「再試一次」。
 - CORS 只允許前端網址。
-- 生成上限（LINE 驗證上線前的費用防護）：每 IP 每小時 10 次、每執行個體每小時 60 次，超過回 429；後端最多 3 個執行個體（每個同時 10 個請求），即每小時最多約 180 次生圖。
+- 生成上限（LINE 驗證上線前的費用防護）：每 IP 每小時 10 次、每執行個體每小時 60 次，超過回 429；後端最多 3 個執行個體（每個同時 10 個請求），即每小時最多約 180 次生圖。來源 IP 取 `X-Forwarded-For` 最後一個值（直連 `run.app` 時為真實來源）；**若之後前面加 HTTPS Load Balancer／自訂網域，要改 `backend/app/core/rate_limit.py` 的 `_client_ip`**（最後一個會變成 LB）。
 - 生圖原檔（PNG 約 7MB）存成 WebP（約 0.8MB）。
 
 ## 網址
