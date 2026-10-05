@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 # mood／place 選項同步；tests/test_health.py 會比對前端檔案防漂移）
 MOOD_LABELS = frozenset({"高興", "平靜", "有點累"})
 PLACE_LABELS = frozenset({"菜市場", "公園散步", "樂齡中心", "待在家裡"})
+_PLACE_CAPTIONS = {
+    "公園散步": "今天去公園散步。",
+    "待在家裡": "今天待在家裡。",
+}
 
 
 class ComicGenerator:
@@ -38,7 +42,15 @@ class ComicGenerator:
         return text.strip()[:200]
 
     async def build_title(self, summary: str) -> str:
-        """為故事下標題。TODO: 交給 LLM。目前取前段當標題。"""
+        """為故事下標題。TODO: 交給 LLM。
+
+        結構化 logline 與前端 buildTitle 同規則（「地點的一天：最後一件事」）；
+        其餘取前段當標題。
+        """
+        parsed = self.parse_logline(summary)
+        if parsed is not None:
+            _, place, events = parsed
+            return f"{place}的一天：{self._event_phrase(events[-1])}"[:40]
         head = summary.split("，")[0].split(" ")[0].strip()
         return head[:20] or "今天的故事"
 
@@ -80,7 +92,7 @@ class ComicGenerator:
             return []
         mood, place, events = parsed
         phrases = [self._event_phrase(e) for e in events]
-        place_caption = "今天待在家裡。" if place == "待在家裡" else f"今天去了{place}。"
+        place_caption = _PLACE_CAPTIONS.get(place, f"今天去了{place}。")
         last = (
             "還有" + "、".join(phrases[1:]) + "。"
             if len(phrases) > 1

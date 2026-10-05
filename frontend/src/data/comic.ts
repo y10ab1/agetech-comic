@@ -92,7 +92,11 @@ export function buildTitle(
 ): string {
   const mood = selections.mood?.label ?? "美好";
   const place = selections.place?.label ?? "今天";
-  const lastEvent = events[events.length - 1]?.label;
+  const last = events[events.length - 1]?.label;
+  // 「對象·行動」→「和對象行動」（與後端 _event_phrase 同規則）
+  const lastEvent = last?.includes("·")
+    ? `和${last.split("·")[0]}${last.split("·").slice(1).join("")}`
+    : last;
   return lastEvent ? `${place}的一天：${lastEvent}` : `${place}的${mood}時光`;
 }
 

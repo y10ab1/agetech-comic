@@ -60,8 +60,11 @@ export default function SharePage() {
       loglineText: script.loglineText,
       title: script.title,
       narratorName: narrator.name,
-      // 正式封面待後端 AI 圖（image_url）；先用「準備中」佔位圖
-      coverSrc: "/assets/comics/cover-placeholder.svg",
+      // 封面＝當次四格圖；生圖失敗（佔位圖）時用「準備中」封面
+      coverSrc:
+        script.panels[0] && !script.panels[0].placeholder
+          ? script.panels[0].src
+          : "/assets/comics/cover-placeholder.svg",
       kind: "diary",
       tags: deriveTags(selections, events),
       styleId: styleId || undefined,

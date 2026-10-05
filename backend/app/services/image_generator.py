@@ -71,8 +71,9 @@ class VertexImageGenerator:
             f"故事內容：{summary}\n"
             f"{plan}"
             f"畫風：{style_desc}。\n"
-            "要求：四格之間有清楚的分隔線；角色造型在四格中保持一致；"
-            "溫暖正向、適合長輩觀看；畫面乾淨、無文字或僅極少文字。"
+            "要求：正方形畫布，2x2 四格等分、填滿整張圖，四格之間有清楚的分隔線；"
+            "角色造型在四格中保持一致；溫暖正向、適合長輩觀看；"
+            "畫面完全不含任何文字、對話框、招牌字或狀聲詞（敘事由圖說另行提供）。"
         )
 
     async def generate_comic_image(
@@ -85,7 +86,7 @@ class VertexImageGenerator:
         """
         import anyio
 
-        from google.genai.types import GenerateContentConfig, Modality
+        from google.genai.types import GenerateContentConfig, ImageConfig, Modality
 
         prompt = self.build_prompt(summary, style, panel_plan)
 
@@ -96,6 +97,8 @@ class VertexImageGenerator:
                 contents=prompt,
                 config=GenerateContentConfig(
                     response_modalities=[Modality.TEXT, Modality.IMAGE],
+                    # 契約 §1-1：正方 ≥2048×2048，前端象限框以 50%×50% 對位
+                    image_config=ImageConfig(aspect_ratio="1:1", image_size="2K"),
                 ),
             )
             for part in response.candidates[0].content.parts:

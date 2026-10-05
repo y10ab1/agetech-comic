@@ -156,3 +156,11 @@ def test_alt_text_is_short_summary() -> None:
     caps = ["今天的心情：高興。", "今天去了菜市場。", "買菜。", "把今天的事記了下來。"]
     alt = ComicGenerator.build_alt_text("x", caps)
     assert alt == "四格漫畫，依序：今天的心情：高興；今天去了菜市場；買菜；把今天的事記了下來"
+
+
+@pytest.mark.anyio
+async def test_title_structured_matches_frontend_rule() -> None:
+    gen = _gen()
+    assert await gen.build_title("高興 + 樂齡中心 + 朋友·泡茶聊天 + 運動") == "樂齡中心的一天：運動"
+    assert await gen.build_title("平靜 + 公園散步 + 老伴·散散步") == "公園散步的一天：和老伴散散步"
+    assert await gen.build_title("今天去公園，很開心") == "今天去公園"
