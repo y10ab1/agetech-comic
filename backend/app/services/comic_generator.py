@@ -16,6 +16,11 @@ from app.services.pocketbase_client import PocketBaseClient, PocketBaseError
 
 logger = logging.getLogger(__name__)
 
+# 結構化 logline 前兩段的合法 label（與 frontend/src/data/questions.ts 的
+# mood／place 選項同步；tests/test_health.py 會比對前端檔案防漂移）
+MOOD_LABELS = frozenset({"高興", "平靜", "有點累"})
+PLACE_LABELS = frozenset({"菜市場", "公園散步", "樂齡中心", "待在家裡"})
+
 
 class ComicGenerator:
     """將日記文字轉為漫畫並（可選）持久化。"""
@@ -42,12 +47,15 @@ class ComicGenerator:
         """解析前端圖卡流程送來的結構化 logline（見 frontend/src/data/logline.ts）。
 
         格式為「心情 + 地點 + 事件1 + 事件2…」，至少 3 段（對齊前端 isComplete：
-        心情、地點皆選且至少一件事）。不符合（自由文字、語音／拍照輸入）回 None。
+        心情、地點皆選且至少一件事），且心情／地點須為白名單 label。
+        不符合（自由文字、語音／拍照輸入）回 None。
         """
         if " + " not in summary:
             return None
         parts = [p.strip() for p in summary.split(" + ")]
         if len(parts) < 3 or any(not p for p in parts):
+            return None
+        if parts[0] not in MOOD_LABELS or parts[1] not in PLACE_LABELS:
             return None
         return parts[0], parts[1], parts[2:]
 
@@ -84,6 +92,13 @@ class ComicGenerator:
             f"{phrases[0]}。",
             last,
         ]
+
+    @staticmethod
+    def build_alt_text(summary: str, quadrant_captions: list[str]) -> str:
+        """整張圖的短版 alt（契約 §1-1：依閱讀順序的短版總述；完整口述放 narration）。"""
+        if len(quadrant_captions) == 4:
+            return "四格漫畫，依序：" + "；".join(c.rstrip("。") for c in quadrant_captions)
+        return f"四格漫畫：{summary[:80]}"
 
     async def build_narration(
         self, summary: str, quadrant_captions: list[str] | None = None
@@ -142,7 +157,12 @@ class ComicGenerator:
         panels: list[ComicPanel] = []
         if image_url:
             panels.append(
-                ComicPanel(order=1, image_url=image_url, caption=title, alt_text=narration)
+                ComicPanel(
+                    order=1,
+                    image_url=image_url,
+                    caption=title,
+                    alt_text=self.build_alt_text(summary, quadrant_captions),
+                )
             )
 
         return ComicResult(

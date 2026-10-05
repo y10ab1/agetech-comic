@@ -40,6 +40,8 @@ export interface DisplayPanel {
   src: string;
   alt: string;
   caption: string;
+  /** 佔位圖（非真 2×2 四格圖）：不畫象限高亮框，圖說與朗讀照常 */
+  placeholder?: boolean;
 }
 
 /** 前端顯示用的完整腳本（由 mock 或 API 結果轉出） */

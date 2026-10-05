@@ -12,6 +12,7 @@ import {
 } from "./questions";
 import { DEFAULT_NARRATOR_ID, getNarrator } from "./narrator";
 import type {
+  DisplayPanel,
   DisplayScript,
   Expression,
   QuadrantCaptions,
@@ -103,10 +104,11 @@ export function adaptComicResult(
   const panels = result.panels
     .slice()
     .sort((a, b) => a.order - b.order)
-    .map((p) => ({
+    .map((p): DisplayPanel => ({
       src: p.image_url || "/assets/comics/panel-placeholder.svg",
       alt: p.alt_text || p.caption || "漫畫分格",
       caption: p.caption,
+      placeholder: !p.image_url || undefined,
     }));
   // 後端允許空 panels（生圖 fallback 且未持久化）：補佔位圖，
   // 避免劇場整張圖無聲消失、share 頁取 panels[0] 出錯
@@ -115,6 +117,7 @@ export function adaptComicResult(
       src: "/assets/comics/panel-placeholder.svg",
       alt: "漫畫準備中",
       caption: "",
+      placeholder: true,
     });
   }
 

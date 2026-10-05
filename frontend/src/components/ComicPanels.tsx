@@ -53,8 +53,9 @@ export function ComicPanels({
     <section aria-label={title}>
       <figure className="comic__single">
         <img className="comic__single-img" src={panel.src} alt={panel.alt} />
-        {/* 象限高亮框：純視覺輔助（朗讀同步線索），對報讀器隱藏 */}
-        {activeIndex >= 0 && activeIndex <= 3 && (
+        {/* 象限高亮框：純視覺輔助（朗讀同步線索），對報讀器隱藏。
+            佔位圖不是 2×2 四格，框了會指向無意義區域 → 不畫 */}
+        {!panel.placeholder && activeIndex >= 0 && activeIndex <= 3 && (
           <span
             aria-hidden="true"
             className={`comic__quadrant comic__quadrant--${activeIndex}`}

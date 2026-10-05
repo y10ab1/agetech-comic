@@ -96,7 +96,13 @@ async def test_quadrant_captions_structured_logline() -> None:
 @pytest.mark.anyio
 @pytest.mark.parametrize(
     "text",
-    ["今天整天待在家裡休息，沒有出門。", "高興 + 菜市場", "高興 +  + 運動", ""],
+    [
+        "今天整天待在家裡休息，沒有出門。",
+        "高興 + 菜市場",
+        "高興 +  + 運動",
+        "",
+        "蘋果 + 香蕉 + 橘子",
+    ],
 )
 async def test_quadrant_captions_no_fabrication(text) -> None:
     """非結構化或不完整輸入：不捏造情節，回空 list、旁白保留原文。"""
@@ -125,3 +131,28 @@ def test_prompt_shares_panel_plan() -> None:
     for pos, text in zip(["左上", "右上", "左下", "右下"], plan):
         assert f"（{pos}）：{text}" in prompt
     assert "左上" not in VertexImageGenerator(get_settings()).build_prompt("s", None)
+
+
+def test_logline_whitelist_matches_frontend() -> None:
+    """後端 mood／place 白名單需與前端 questions.ts 選項一致（防漂移）。"""
+    import re
+    from pathlib import Path
+
+    from app.services.comic_generator import MOOD_LABELS, PLACE_LABELS
+
+    src = Path(__file__).resolve().parents[2] / "frontend/src/data/questions.ts"
+    if not src.exists():
+        pytest.skip("frontend 原始碼不在此環境（如 backend 容器）")
+    text = src.read_text(encoding="utf-8")
+    for kind, expected in (("mood", MOOD_LABELS), ("place", PLACE_LABELS)):
+        labels = set(re.findall(rf'value: "{kind}:[^"]+", label: "([^"]+)"', text))
+        assert labels == expected, kind
+
+
+def test_alt_text_is_short_summary() -> None:
+    """alt_text 為短版總述，不是完整 narration。"""
+    from app.services.comic_generator import ComicGenerator
+
+    caps = ["今天的心情：高興。", "今天去了菜市場。", "買菜。", "把今天的事記了下來。"]
+    alt = ComicGenerator.build_alt_text("x", caps)
+    assert alt == "四格漫畫，依序：今天的心情：高興；今天去了菜市場；買菜；把今天的事記了下來"
