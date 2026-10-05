@@ -1,4 +1,4 @@
-"""Vertex AI 圖片生成服務（Nano Banana 2 / Gemini 3 Pro Image）。
+"""Vertex AI 圖片生成服務（預設 Nano Banana 2 Lite：gemini-3.1-flash-lite-image）。
 
 一次生成「一張」包含 2x2 四格的漫畫圖（非四張獨立圖），同步等待。
 認證走 GCP ADC，不需 API key。
@@ -97,8 +97,10 @@ class VertexImageGenerator:
                 contents=prompt,
                 config=GenerateContentConfig(
                     response_modalities=[Modality.TEXT, Modality.IMAGE],
-                    # 契約 §1-1：正方 ≥2048×2048，前端象限框以 50%×50% 對位
-                    image_config=ImageConfig(aspect_ratio="1:1", image_size="2K"),
+                    # 契約 §1-1：正方（前端象限框以 50%×50% 對位）；尺寸依模型上限（VERTEX_IMAGE_SIZE）
+                    image_config=ImageConfig(
+                        aspect_ratio="1:1", image_size=self._settings.vertex_image_size
+                    ),
                 ),
             )
             for part in response.candidates[0].content.parts:
