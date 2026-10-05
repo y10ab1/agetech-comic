@@ -2,9 +2,10 @@
 
 import logging
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.core.config import get_settings
+from app.core.rate_limit import check_generation_quota
 from app.models.comic import ComicResult, DiaryEntry, DiaryListResponse
 from app.services.comic_generator import ComicGenerator
 from app.services.image_generator import ImageGenerationError
@@ -25,7 +26,11 @@ def _resolve_user(x_debug_user: str | None) -> str | None:
     return None
 
 
-@router.post("/comics/generate", response_model=ComicResult)
+@router.post(
+    "/comics/generate",
+    response_model=ComicResult,
+    dependencies=[Depends(check_generation_quota)],
+)
 async def generate_comic(
     entry: DiaryEntry,
     x_debug_user: str | None = Header(default=None),

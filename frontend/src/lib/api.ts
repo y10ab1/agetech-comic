@@ -84,6 +84,14 @@ export interface GenerateComicOptions {
   debugUser?: string;
 }
 
+/** API 錯誤（帶 HTTP status；429＝生成次數已達上限） */
+export class ApiError extends Error {
+  constructor(public status: number) {
+    super(`漫畫生成失敗：${status}`);
+    this.name = "ApiError";
+  }
+}
+
 /** 呼叫後端，把一天的日記文字轉成漫畫。 */
 export async function generateComic(
   entry: DiaryEntry,
@@ -113,7 +121,7 @@ export async function generateComic(
   }
 
   if (!res.ok) {
-    throw new Error(`漫畫生成失敗：${res.status}`);
+    throw new ApiError(res.status);
   }
 
   return res.json();

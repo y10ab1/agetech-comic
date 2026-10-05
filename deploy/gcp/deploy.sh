@@ -135,8 +135,8 @@ backend() {
   $G run deploy "$BACKEND_SVC" --region="$REGION" --image="$image" \
     --service-account="$BACKEND_SA" --allow-unauthenticated \
     --network=default --subnet=default --vpc-egress=private-ranges-only \
-    --cpu=1 --memory=1Gi --concurrency=40 --timeout=300 --min-instances=0 --max-instances=5 \
-    --set-env-vars="^|^ENV=prod|DEBUG=false|VERTEX_PROJECT=${PROJECT}|VERTEX_LOCATION=global|VERTEX_IMAGE_MODEL=${VERTEX_IMAGE_MODEL}|IMAGE_GEN_FALLBACK=false|PERSIST_DIARIES=true|POCKETBASE_URL=http://${pbip}:8090|POCKETBASE_PUBLIC_URL=$(backend_url)|POCKETBASE_ADMIN_EMAIL=${PB_ADMIN_EMAIL}|CORS_ORIGINS=[\"$(frontend_url)\"]" \
+    --cpu=1 --memory=1Gi --concurrency=10 --timeout=300 --min-instances=0 --max-instances=3 \
+    --set-env-vars="^|^ENV=prod|DEBUG=false|VERTEX_PROJECT=${PROJECT}|VERTEX_LOCATION=global|VERTEX_IMAGE_MODEL=${VERTEX_IMAGE_MODEL}|IMAGE_GEN_FALLBACK=false|PERSIST_DIARIES=true|POCKETBASE_URL=http://${pbip}:8090|POCKETBASE_PUBLIC_URL=$(backend_url)|POCKETBASE_ADMIN_EMAIL=${PB_ADMIN_EMAIL}|GENERATE_LIMIT_PER_IP_HOUR=10|GENERATE_LIMIT_GLOBAL_HOUR=60|CORS_ORIGINS=[\"$(frontend_url)\"]" \
     --set-secrets="POCKETBASE_ADMIN_PASSWORD=${PB_PASSWORD_SECRET}:latest" \
     --labels="app=agetech-comic,commit=${TAG}"
   curl -fsS "$(backend_url)/health" && echo

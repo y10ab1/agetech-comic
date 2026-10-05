@@ -316,3 +316,29 @@ def test_generate_prod_failures_return_502(client, monkeypatch) -> None:
 
     monkeypatch.setattr(image_generator.VertexImageGenerator, "generate_comic_image", _boom)
     assert client.post("/comics/generate", json=body).status_code == 502
+
+
+def test_generate_rate_limit(client, monkeypatch) -> None:
+    """每 IP 上限：超過回 429 {code: RATE_LIMIT}；不同 IP 各自計算。"""
+    from app.core import rate_limit
+    from app.services import image_generator
+
+    monkeypatch.setenv("GENERATE_LIMIT_PER_IP_HOUR", "2")
+    get_settings.cache_clear()
+    rate_limit.reset()
+
+    async def _boom(self, summary, style, panel_plan=None):
+        raise image_generator.ImageGenerationError("test")
+
+    monkeypatch.setattr(image_generator.VertexImageGenerator, "generate_comic_image", _boom)
+    body = {"user_id": "u", "text": "x"}
+    a = {"X-Forwarded-For": "1.1.1.1"}
+    assert client.post("/comics/generate", json=body, headers=a).status_code == 200
+    assert client.post("/comics/generate", json=body, headers=a).status_code == 200
+    r = client.post("/comics/generate", json=body, headers=a)
+    assert r.status_code == 429 and r.json()["detail"]["code"] == "RATE_LIMIT"
+    # 偽造的前段 XFF 不影響（取最後一個＝Cloud Run 附加的真實來源）
+    spoof = {"X-Forwarded-For": "9.9.9.9, 1.1.1.1"}
+    assert client.post("/comics/generate", json=body, headers=spoof).status_code == 429
+    assert client.post("/comics/generate", json=body, headers={"X-Forwarded-For": "2.2.2.2"}).status_code == 200
+    rate_limit.reset()
