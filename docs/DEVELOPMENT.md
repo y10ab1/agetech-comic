@@ -7,7 +7,7 @@ POST /comics/generate
   └─ ComicGenerator.create_comic()               app/services/comic_generator.py
        ├─ summarize / build_title / build_narration   （規則式 stub，待接 LLM）
        ├─ VertexImageGenerator.generate_comic_image()  app/services/image_generator.py
-       │     └─ Vertex Nano Banana 2（gemini-3-pro-image），生成「一張」四格圖
+       │     └─ Vertex Nano Banana 2 Lite（gemini-3.1-flash-lite-image），生成「一張」四格圖
        └─ PocketBaseClient.create_diary()              app/services/pocketbase_client.py
              └─ 上傳圖檔 + 建立日記紀錄 → 回傳 cover_url
 
@@ -26,7 +26,7 @@ GET /me/diaries → PocketBaseClient.list_diaries()（集章存摺）
 - tag 判斷：依限定 taxonomy（`shared/tags.json`）由 AI 判斷，回填 `tags`。
 
 ### 圖片生成（app/services/image_generator.py）
-- 已接 Vertex `gemini-3-pro-image`。**需確認 GCP 專案已開通該模型**
+- 已接 Vertex `gemini-3.1-flash-lite-image`（Nano Banana 2 Lite，最大 1K）。**需確認 GCP 專案已開通該模型**
   （否則回 404；本機測試曾遇到，故加了 `IMAGE_GEN_FALLBACK`）。
 - 畫風 prompt 在 `_STYLE_PROMPTS`，對應前端 `/styles`。
 

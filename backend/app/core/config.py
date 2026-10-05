@@ -5,6 +5,7 @@
 """
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -26,11 +27,14 @@ class Settings(BaseSettings):
     line_channel_access_token: str = ""
     line_channel_secret: str = ""
 
-    # Vertex AI（圖片生成：Nano Banana 2 / Gemini 3 Pro Image）
+    # Vertex AI（圖片生成）
     # 認證走 GCP ADC（gcloud auth application-default login），不需 API key。
     vertex_project: str = ""
     vertex_location: str = "global"
-    vertex_image_model: str = "gemini-3-pro-image"
+    # 生圖：Nano Banana 2 Lite（gemini-3.1-flash-lite-image），最大 1K（設 2K 會 400）。
+    # 換回 Nano Banana Pro（gemini-3-pro-image）時可設 VERTEX_IMAGE_SIZE=2K
+    vertex_image_model: str = "gemini-3.1-flash-lite-image"
+    vertex_image_size: Literal["1K", "2K", "4K"] = "1K"  # 拼錯在啟動時就報錯
     # 故事文字（標題／四格圖說／畫面描述）。逗號分隔＝依序嘗試：快的 GA 模型在前，
     # 不合格（含重寫一次後）或呼叫失敗換下一個；全部失敗或逾時退回規則式
     vertex_text_model: str = "gemini-2.5-flash,gemini-3-flash-preview"

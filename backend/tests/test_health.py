@@ -350,3 +350,32 @@ def test_generate_rate_limit(client, monkeypatch) -> None:
     for _ in range(4):
         assert client.post("/comics/generate", json=body, headers=b).status_code == 502
     rate_limit.reset()
+
+
+@pytest.mark.anyio
+async def test_image_config_uses_settings(monkeypatch) -> None:
+    """生圖帶入 VERTEX_IMAGE_MODEL／VERTEX_IMAGE_SIZE，固定 1:1。"""
+    from types import SimpleNamespace
+
+    from app.services.image_generator import VertexImageGenerator
+
+    monkeypatch.setenv("VERTEX_IMAGE_MODEL", "gemini-3.1-flash-lite-image")
+    monkeypatch.setenv("VERTEX_IMAGE_SIZE", "1K")
+    get_settings.cache_clear()
+    seen = {}
+
+    def _gen(model, contents, config):
+        seen.update(model=model, size=config.image_config.image_size, ratio=config.image_config.aspect_ratio)
+        part = SimpleNamespace(inline_data=SimpleNamespace(data=b"img"))
+        return SimpleNamespace(candidates=[SimpleNamespace(content=SimpleNamespace(parts=[part]))])
+
+    gen = VertexImageGenerator(get_settings())
+    gen._client = SimpleNamespace(models=SimpleNamespace(generate_content=_gen))
+    assert await gen.generate_comic_image("s", None) == b"img"
+    assert seen == {"model": "gemini-3.1-flash-lite-image", "size": "1K", "ratio": "1:1"}
+
+    monkeypatch.setenv("VERTEX_IMAGE_SIZE", "2k")
+    get_settings.cache_clear()
+    with pytest.raises(Exception):
+        get_settings()
+    get_settings.cache_clear()
