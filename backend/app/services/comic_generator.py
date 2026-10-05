@@ -7,7 +7,12 @@
 規則式 / stub，待接 LLM 時再強化；圖片生成已接 Vertex Nano Banana 2。
 """
 
+import io
 import logging
+
+import anyio
+
+from PIL import Image
 
 from app.core.config import Settings
 from app.models.comic import ComicPanel, ComicResult, DiaryEntry
@@ -24,6 +29,21 @@ _PLACE_CAPTIONS = {
     "公園散步": "今天去公園散步。",
     "待在家裡": "今天待在家裡。",
 }
+
+
+def compress_comic(image_bytes: bytes) -> tuple[bytes, str, str]:
+    """生圖原檔（PNG 約 7MB）轉 WebP q85（約 0.8MB），長輩手機與 LINE 分享載得動。
+
+    回傳 (bytes, filename, mime)；轉檔失敗時原樣回傳 PNG，不中斷流程。
+    """
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as im:
+            out = io.BytesIO()
+            im.convert("RGB").save(out, "WEBP", quality=85, method=4)
+        return out.getvalue(), "comic.webp", "image/webp"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("漫畫圖轉 WebP 失敗，改存原檔：%s", exc)
+        return image_bytes, "comic.png", "image/png"
 
 
 class ComicGenerator:
@@ -153,6 +173,12 @@ class ComicGenerator:
         # TODO(issue #9 後續)：後端 TTS 生成旁白音檔後以 audio_bytes 一併存入
         narration_audio_url: str | None = None
         if self._pb is not None:
+            # 轉檔約 0.4 秒 CPU，丟 threadpool 免卡住其他請求
+            stored_bytes, stored_name, stored_mime = (
+                await anyio.to_thread.run_sync(compress_comic, image_bytes)
+                if image_bytes
+                else (None, "comic.png", "image/png")
+            )
             try:
                 diary_id, cover_url, narration_audio_url = await self._pb.create_diary(
                     user_id=entry.user_id,
@@ -161,7 +187,9 @@ class ComicGenerator:
                     mood=entry.mood,
                     style=entry.style,
                     logline=entry.text,
-                    image_bytes=image_bytes,
+                    image_bytes=stored_bytes,
+                    image_filename=stored_name,
+                    image_mime=stored_mime,
                     narration=narration,
                 )
                 image_url = cover_url

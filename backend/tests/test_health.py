@@ -244,3 +244,48 @@ async def test_create_diary_audio_rejected_retries_without_audio(
         with pytest.raises(mod.PocketBaseError):
             await pb.create_diary(**kwargs)
         assert len(posts) == 1
+
+
+def test_file_proxy(client, monkeypatch) -> None:
+    """/api/files 代理：轉發 PocketBase 檔案、長快取；非法路徑段 404。"""
+    import httpx
+
+    from app.api import files as mod
+
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if request.url.path.endswith("/missing.png"):
+            return httpx.Response(404)
+        return httpx.Response(200, content=b"PNG", headers={"content-type": "image/png"})
+
+    real = httpx.AsyncClient
+
+    class _Client(real):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, transport=httpx.MockTransport(handler), **kw)
+
+    monkeypatch.setattr(mod.httpx, "AsyncClient", _Client)
+    r = client.get("/api/files/c1/r1/comic_x.png")
+    assert r.status_code == 200 and r.content == b"PNG"
+    assert r.headers["content-type"] == "image/png"
+    assert "immutable" in r.headers["cache-control"]
+    assert seen[-1].endswith("/api/files/c1/r1/comic_x.png")
+    assert client.get("/api/files/c1/r1/missing.png").status_code == 404
+    assert client.get("/api/files/c1/r1/a%20b.png").status_code == 404
+
+
+def test_compress_comic_webp() -> None:
+    """生圖 PNG 轉 WebP；非圖片 bytes 原樣回傳 PNG。"""
+    import io
+
+    from PIL import Image
+
+    from app.services.comic_generator import compress_comic
+
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 64), "orange").save(buf, "PNG")
+    data, name, mime = compress_comic(buf.getvalue())
+    assert (name, mime) == ("comic.webp", "image/webp") and data[8:12] == b"WEBP"
+    assert compress_comic(b"not-an-image") == (b"not-an-image", "comic.png", "image/png")

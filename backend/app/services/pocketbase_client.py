@@ -66,6 +66,7 @@ class PocketBaseClient:
         logline: str,
         image_bytes: bytes | None,
         image_filename: str = "comic.png",
+        image_mime: str = "image/png",
         narration: str = "",
         audio_bytes: bytes | None = None,
         audio_filename: str = "narration.mp3",
@@ -91,7 +92,7 @@ class PocketBaseClient:
 
         files: dict[str, tuple[str, bytes, str]] = {}
         if image_bytes:
-            files["comic"] = (image_filename, image_bytes, "image/png")
+            files["comic"] = (image_filename, image_bytes, image_mime)
         if audio_bytes:
             files["narration_audio"] = (audio_filename, audio_bytes, audio_mime)
 
