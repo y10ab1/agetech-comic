@@ -17,7 +17,7 @@
 |---|---|---|
 | 前端 | Cloud Run `agetech-frontend`（SA `agetech-frontend@`，無任何角色） | `frontend/`、`frontend/Dockerfile` |
 | 後端 | Cloud Run `agetech-backend`（SA `agetech-backend@`：`roles/aiplatform.user`＋讀密碼 secret） | `backend/`、`backend/Dockerfile` |
-| 資料庫／圖檔 | VM `agetech-pb`（e2-small、Debian 12、20GB、固定內網 IP `agetech-pb-internal`、8090 只有內網可連、SSH 只允許經 IAP、無 SA） | `pocketbase/pb_migrations/`、`deploy/gcp/pb_vm_setup.sh` |
+| 資料庫／圖檔 | VM `agetech-pb`（e2-small、Debian 12、20GB、固定內網 IP `agetech-pb-internal`、8090 只開給 default 子網（防火牆 `agetech-pb-internal-8090`）、SSH 只允許經 IAP（`agetech-pb-ssh-iap`／`-deny`）、無 SA） | `pocketbase/pb_migrations/`、`deploy/gcp/pb_vm_setup.sh` |
 | 備份 | 磁碟每日快照 `agetech-pb-daily`（保留 14 天）＋每次部署前 `/opt/pocketbase/backups/` tar（保留 10 份） | `deploy/gcp/deploy.sh` |
 | 密碼 | Secret Manager `agetech-pb-admin-password`（自動產生，不落地） | `deploy/gcp/deploy.sh` |
 | 映像 | Artifact Registry `asia-east1/agetech`，tag＝git commit | `deploy/gcp/deploy.sh` |

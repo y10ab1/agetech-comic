@@ -85,6 +85,13 @@ infra() {
   $G compute firewall-rules describe agetech-pb-ssh-deny >/dev/null 2>&1 \
     || $G compute firewall-rules create agetech-pb-ssh-deny --network=default --direction=INGRESS \
          --priority=900 --action=DENY --rules=tcp:22 --source-ranges=0.0.0.0/0 --target-tags=agetech-pb
+  # 後端（Cloud Run Direct VPC egress，IP 取自 default 子網）→ PocketBase 8090。
+  # 不依賴專案預設的 default-allow-internal，明確只開子網來源
+  local subnet_range
+  subnet_range="$($G compute networks subnets describe default --region="$REGION" --format='value(ipCidrRange)')"
+  $G compute firewall-rules describe agetech-pb-internal-8090 >/dev/null 2>&1 \
+    || $G compute firewall-rules create agetech-pb-internal-8090 --network=default --direction=INGRESS \
+         --priority=800 --action=ALLOW --rules=tcp:8090 --source-ranges="$subnet_range" --target-tags=agetech-pb
   if ! $G compute instances describe "$PB_VM" --zone="$ZONE" >/dev/null 2>&1; then
     $G compute instances create "$PB_VM" --zone="$ZONE" --machine-type=e2-small \
       --image-family=debian-12 --image-project=debian-cloud \
