@@ -34,8 +34,17 @@ const RATE_LABEL: Record<SpeechRate, string> = {
  */
 export default function TheaterPage() {
   const router = useRouter();
-  const { userId, salutation, selections, events, narratorId, styleId } =
-    useFlow();
+  const {
+    userId,
+    salutation,
+    selections,
+    events,
+    narratorId,
+    styleId,
+    script: flowScript,
+    setScript: setFlowScript,
+    flowKey,
+  } = useFlow();
   const narrator = getNarrator(narratorId);
   const speech = useSpeech(0.8);
 
@@ -51,13 +60,25 @@ export default function TheaterPage() {
 
   useEffect(() => {
     if (!complete) return;
+    // 同一組輸入已生成過（例如從分享頁返回）：沿用，不重打生圖 API
+    if (flowScript) {
+      scriptRef.current = flowScript;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 掛載時一次性還原
+      setScript(flowScript);
+      setPhase("ready");
+      return;
+    }
     // 初始 state 已是 loading/failed=false，故 effect 內只做非同步生成
     let alive = true;
+    // 記下發起生成時的輸入識別：腳本只對這組輸入有效
+    const key = flowKey;
     createComic({ userId, salutation, selections, events, narratorId, styleId })
       .then((s) => {
         if (!alive) return;
         scriptRef.current = s;
         setScript(s);
+        // 同步進 FlowContext：share 落章沿用同一份（真 API 結果才會被保存）
+        setFlowScript(s, key);
         setPhase("ready");
       })
       .catch(() => {
@@ -236,6 +257,7 @@ export default function TheaterPage() {
               <ComicPanels
                 title={`${salutation || "阿公阿嬤"}的四格漫畫：${script.loglineText}`}
                 panels={script.panels}
+                quadrantCaptions={script.quadrantCaptions}
                 activeIndex={isPlaybackActive ? seg?.panelIndex ?? -1 : -1}
               />
               <section
@@ -246,12 +268,11 @@ export default function TheaterPage() {
                 {script.segments.map((s, i) => (
                   <p
                     key={i}
-                    className="mb-3 rounded-lg px-2 py-1 text-[20px] leading-[1.6]"
-                    style={
+                    className={`story__line mb-3 rounded-lg px-2 py-1 text-[20px] leading-[1.6] ${
                       isPlaybackActive && i === segIndex
-                        ? { background: "#fff3c4", fontWeight: 700 }
-                        : undefined
-                    }
+                        ? "story__line--active"
+                        : ""
+                    }`}
                   >
                     {s.text}
                   </p>
@@ -264,16 +285,18 @@ export default function TheaterPage() {
 
       <div className="mt-10 flex flex-wrap justify-between gap-[var(--touch-gap)]">
         <BackButton to="/events" />
+        {/* 本次漫畫生成完成前不能進落章（否則會存到別份或 mock 腳本） */}
         <AccessibleButton
           size="lg"
           variant="primary"
           icon={<Icon name="arrow-right" />}
+          disabled={!script}
           onClick={() => {
             speech.cancel();
             router.push("/share");
           }}
         >
-          我喜歡，下一步分享
+          {script ? "我喜歡，下一步分享" : "漫畫準備中…"}
         </AccessibleButton>
       </div>
     </main>

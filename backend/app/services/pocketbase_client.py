@@ -97,12 +97,17 @@ class PocketBaseClient:
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             token = await self._authenticate(client)
+            url = f"{self._base}/api/collections/{_DIARIES}/records"
             resp = await client.post(
-                f"{self._base}/api/collections/{_DIARIES}/records",
-                headers={"Authorization": token},
-                data=data,
-                files=files or None,
+                url, headers={"Authorization": token}, data=data, files=files or None
             )
+            if resp.status_code == 400 and "narration_audio" in files:
+                # 音檔被拒（格式/大小不符白名單）不該連圖與日記一起丟：去掉音檔重試
+                logger.warning("旁白音檔被拒，改存不含音檔的日記：%s", resp.text)
+                files.pop("narration_audio")
+                resp = await client.post(
+                    url, headers={"Authorization": token}, data=data, files=files or None
+                )
             if resp.status_code not in (200, 201):
                 raise PocketBaseError(
                     f"建立日記失敗：{resp.status_code} {resp.text}"

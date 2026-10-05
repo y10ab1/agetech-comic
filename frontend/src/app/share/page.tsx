@@ -9,31 +9,44 @@ import { ScreenHeading } from "@/components/ScreenHeading";
 import { Icon } from "@/components/Icon";
 import { useFlow } from "@/context/FlowContext";
 import { isComplete } from "@/data/logline";
-import { generateMockScript, mockLineShare } from "@/data/comic";
+import { mockLineShare } from "@/data/comic";
 import { addStamp } from "@/data/collection";
 import { deriveTags } from "@/data/tags";
 import { consumeGeneration, grantForStampCount } from "@/data/rewards";
 import { getNarrator } from "@/data/narrator";
 import { QUESTIONS } from "@/data/questions";
-import type { StampRecord } from "@/data/types";
+import type { DisplayScript, StampRecord } from "@/data/types";
 
 /**
  * 輸出與留存 —— 兩顆醒目按鈕：分享到 LINE、打開集章存摺。
  * 進頁把這次的漫畫記為集章存摺的一枚印章（純前端、0 token）。
  */
+/**
+ * 已落章的腳本（模組層級，跨頁面掛載存活）：從分享頁返回劇場再進來時，
+ * 劇場沿用同一份腳本，這裡據此避免重複落章與重複消耗生成次數。
+ */
+const stampedScripts = new WeakSet<DisplayScript>();
+
 export default function SharePage() {
   const router = useRouter();
-  const { userId, salutation, selections, events, narratorId, styleId, reset } =
-    useFlow();
+  const {
+    selections,
+    events,
+    narratorId,
+    styleId,
+    script: flowScript,
+    reset,
+  } = useFlow();
   const [greeting, setGreeting] = useState("");
   const [sharing, setSharing] = useState(false);
   const [rewards, setRewards] = useState<string[]>([]);
   const savedRef = useRef(false);
 
   const complete = isComplete(selections, events);
-  const script = complete
-    ? generateMockScript({ userId, salutation, selections, events, narratorId })
-    : null;
+  // 只沿用劇場為「目前這組選項」生成的腳本（FlowContext 以 flowKey 綁定，
+  // 選項變更即失效）。沒有當次腳本（直接進本頁／選項改過）就回劇場重新生成，
+  // 不以 mock 或舊故事落章
+  const script = complete ? flowScript : null;
   const narrator = getNarrator(narratorId);
 
   useEffect(() => {
@@ -41,22 +54,31 @@ export default function SharePage() {
       router.replace(`/q/${QUESTIONS[0].slug}`);
       return;
     }
-    if (!script || savedRef.current) return;
+    if (!script) {
+      router.replace("/theater");
+      return;
+    }
+    if (savedRef.current || stampedScripts.has(script)) return;
     savedRef.current = true;
+    stampedScripts.add(script);
     const record: StampRecord = {
       id: "S" + Date.now().toString(36),
       createdAt: new Date().toLocaleDateString("zh-TW"),
       loglineText: script.loglineText,
       title: script.title,
       narratorName: narrator.name,
-      // 正式封面待後端 AI 圖（image_url）；先用「準備中」佔位圖
-      coverSrc: "/assets/comics/cover-placeholder.svg",
+      // 封面＝當次四格圖；生圖失敗（佔位圖）時用「準備中」封面
+      coverSrc:
+        script.panels[0] && !script.panels[0].placeholder
+          ? script.panels[0].src
+          : "/assets/comics/cover-placeholder.svg",
       kind: "diary",
       tags: deriveTags(selections, events),
       styleId: styleId || undefined,
       // 存下逐句腳本與漫畫格，讓集章內頁能原句重播（回憶內頁）
       segments: script.segments,
       panels: script.panels,
+      quadrantCaptions: script.quadrantCaptions,
     };
     const list = addStamp(record);
     // 消耗一次生成、依累計章數發里程碑獎勵
@@ -65,7 +87,7 @@ export default function SharePage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (msgs.length) setRewards(msgs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [complete]);
+  }, [complete, script]);
 
   if (!complete || !script) return null;
 
@@ -102,7 +124,7 @@ export default function SharePage() {
 
         <figure className="mb-7 text-center">
           <img
-            className="mx-auto w-[240px] max-w-[70%] rounded-[var(--radius)] border-[3px] border-[color:var(--color-neutral-border)]"
+            className="mx-auto w-[320px] max-w-[92%] rounded-[var(--radius)] border-[3px] border-[color:var(--color-neutral-border)]"
             src={script.panels[0].src}
             alt={script.panels[0].alt}
           />

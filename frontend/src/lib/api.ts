@@ -38,6 +38,8 @@ export interface ComicResult {
   panels: ComicPanel[];
   /** 整篇漫畫的無障礙口述內容 */
   narration: string;
+  /** 四個象限的圖說，閱讀順序左上→右上→左下→右下（恰 4 筆；無法提供時為空） */
+  quadrant_captions: string[];
   /** AI 依故事內容下的標題（集章存摺卡片顯示用） */
   title: string;
   /** 限定 taxonomy 的 tag id（見 shared/tags.json） */

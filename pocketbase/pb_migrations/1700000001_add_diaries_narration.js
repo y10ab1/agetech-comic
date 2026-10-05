@@ -18,7 +18,18 @@ migrate(
         required: false,
         maxSelect: 1,
         maxSize: 20971520, // 20MB
-        mimeTypes: ["audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/aac"],
+        // PocketBase 以內容嗅探判斷 MIME，同格式常見別名一併放行
+        mimeTypes: [
+          "audio/mpeg",
+          "audio/mp4",
+          "audio/x-m4a",
+          "audio/aac",
+          "audio/x-aac",
+          "audio/wav",
+          "audio/x-wav",
+          "audio/ogg",
+          "audio/webm",
+        ],
       }),
     );
     app.save(collection);
