@@ -41,6 +41,7 @@ export default function TheaterPage() {
     events,
     narratorId,
     styleId,
+    script: flowScript,
     setScript: setFlowScript,
     flowKey,
   } = useFlow();
@@ -59,6 +60,14 @@ export default function TheaterPage() {
 
   useEffect(() => {
     if (!complete) return;
+    // 同一組輸入已生成過（例如從分享頁返回）：沿用，不重打生圖 API
+    if (flowScript) {
+      scriptRef.current = flowScript;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 掛載時一次性還原
+      setScript(flowScript);
+      setPhase("ready");
+      return;
+    }
     // 初始 state 已是 loading/failed=false，故 effect 內只做非同步生成
     let alive = true;
     // 記下發起生成時的輸入識別：腳本只對這組輸入有效

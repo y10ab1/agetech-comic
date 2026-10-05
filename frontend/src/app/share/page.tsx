@@ -15,12 +15,18 @@ import { deriveTags } from "@/data/tags";
 import { consumeGeneration, grantForStampCount } from "@/data/rewards";
 import { getNarrator } from "@/data/narrator";
 import { QUESTIONS } from "@/data/questions";
-import type { StampRecord } from "@/data/types";
+import type { DisplayScript, StampRecord } from "@/data/types";
 
 /**
  * 輸出與留存 —— 兩顆醒目按鈕：分享到 LINE、打開集章存摺。
  * 進頁把這次的漫畫記為集章存摺的一枚印章（純前端、0 token）。
  */
+/**
+ * 已落章的腳本（模組層級，跨頁面掛載存活）：從分享頁返回劇場再進來時，
+ * 劇場沿用同一份腳本，這裡據此避免重複落章與重複消耗生成次數。
+ */
+const stampedScripts = new WeakSet<DisplayScript>();
+
 export default function SharePage() {
   const router = useRouter();
   const {
@@ -52,8 +58,9 @@ export default function SharePage() {
       router.replace("/theater");
       return;
     }
-    if (savedRef.current) return;
+    if (savedRef.current || stampedScripts.has(script)) return;
     savedRef.current = true;
+    stampedScripts.add(script);
     const record: StampRecord = {
       id: "S" + Date.now().toString(36),
       createdAt: new Date().toLocaleDateString("zh-TW"),
