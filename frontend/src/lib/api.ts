@@ -100,6 +100,8 @@ export async function generateComic(
     method: "POST",
     headers,
     body: JSON.stringify(entry),
+    // 生圖約 30–60 秒；超過 3 分鐘視為失敗，讓劇場顯示「再試一次」而非無限等待
+    signal: AbortSignal.timeout(180_000),
   });
 
   if (!res.ok) {
