@@ -8,10 +8,10 @@ from app.core.config import get_settings
 from app.services import story_writer as sw
 
 GOOD = {
-    "title": "菜市場的溫暖早晨",
+    "title": "和老伴逛菜市場",
     "summary": "您今天心情很好，和老伴一起去菜市場買菜。",
     "panels": [
-        {"caption": "今天一早，您的心情好極了", "scene": "長輩在窗邊微笑伸懶腰"},
+        {"caption": "今天您的心情好極了", "scene": "長輩在窗邊微笑伸懶腰"},
         {"caption": "您來到熱鬧的菜市場。", "scene": "長輩走進菜市場"},
         {"caption": "和老伴一起慢慢挑菜。", "scene": "長輩和老伴在菜攤前挑菜"},
         {"caption": "兩個人有說有笑，真好！", "scene": "長輩和老伴提著菜籃相視而笑"},
@@ -24,6 +24,7 @@ def writer(monkeypatch):
     monkeypatch.setenv("STORY_LLM_ENABLED", "true")
     monkeypatch.setenv("STORY_LLM_TIMEOUT_S", "0.5")
     monkeypatch.setenv("VERTEX_PROJECT", "test")
+    monkeypatch.setenv("VERTEX_TEXT_MODEL", "m1")  # 單一模型；備援鏈另測
     get_settings.cache_clear()
     yield sw.StoryWriter(get_settings())
     get_settings.cache_clear()
@@ -32,8 +33,8 @@ def writer(monkeypatch):
 def _fake(monkeypatch, result=None, exc=None, delay=0.0):
     calls = []
 
-    async def _call(self, text, mood, feedback=""):
-        calls.append((text, mood, feedback))
+    async def _call(self, model, text, mood, feedback=""):
+        calls.append((text, mood, feedback, model))
         if isinstance(result, list):  # 依序回傳（測重寫）
             return result[len(calls) - 1]
         if delay:
@@ -42,15 +43,15 @@ def _fake(monkeypatch, result=None, exc=None, delay=0.0):
             raise exc
         return result
 
-    monkeypatch.setattr(sw.StoryWriter, "_call_llm", _call)
+    monkeypatch.setattr(sw.StoryWriter, "_call_model", _call)
     return calls
 
 
 def test_validate_normalizes() -> None:
     plan = sw.validate_story(GOOD, "x")
     assert plan.source == "llm"
-    assert plan.title == "菜市場的溫暖早晨"
-    assert plan.captions[0] == "今天一早，您的心情好極了。"  # 補句號
+    assert plan.title == "和老伴逛菜市場"
+    assert plan.captions[0] == "今天您的心情好極了。"  # 補句號
     assert len(plan.scenes) == 4
 
 
@@ -100,7 +101,7 @@ async def test_structured_input_never_loses_quadrants(writer, monkeypatch) -> No
     """模型對結構化輸入回 0 格時，採規則式圖說（象限同步不能消失）。"""
     _fake(monkeypatch, result={**GOOD, "panels": []})
     plan = await writer.write("高興 + 菜市場 + 老伴·買菜", "happy")
-    assert plan.title == "菜市場的溫暖早晨"
+    assert plan.title == "和老伴逛菜市場"
     assert len(plan.captions) == 4 and plan.scenes == []
 
 
@@ -148,7 +149,7 @@ async def test_create_comic_uses_scenes_for_image(monkeypatch) -> None:
         comic_generator.DiaryEntry(user_id="u", text="高興 + 菜市場 + 老伴·買菜", mood="happy")
     )
     assert seen["plan"] == [p["scene"] for p in GOOD["panels"]]
-    assert res.title == "菜市場的溫暖早晨"
+    assert res.title == "和老伴逛菜市場"
     assert res.quadrant_captions[2] == "和老伴一起慢慢挑菜。"
     assert all(c in res.narration for c in res.quadrant_captions)
     get_settings.cache_clear()
@@ -161,6 +162,14 @@ def test_find_fabrications() -> None:
     plan = sw.validate_story(BAD_HOME, "x")
     assert sw.find_fabrications(plan, "高興 + 菜市場 + 老伴·買菜") == ["下午", "回到家"]
     assert sw.find_fabrications(plan, "下午買完菜就回到家") == []
+    # 換個說法的時間詞、餐別、畫面描述裡的編造也要抓到
+    sneaky = {**GOOD, "title": "溫暖早晨", "panels": GOOD["panels"][:3] + [
+        {"caption": "兩人一起吃晚餐。", "scene": "黃昏時分，長輩出門散步"}]}
+    plan = sw.validate_story(sneaky, "x")
+    assert sw.find_fabrications(plan, "高興 + 待在家裡 + 老伴·一起吃飯") == [
+        "早晨", "黃昏", "晚餐", "出門"]
+    # 輸入本身有的詞允許（「沒有出門」含「出門」）
+    assert "出門" not in sw.find_fabrications(plan, "今天沒有出門，晚餐和老伴吃，黃昏早晨都在家")
 
 
 @pytest.mark.anyio
@@ -195,19 +204,31 @@ async def test_writer_retries_on_invalid_format(writer, monkeypatch) -> None:
 
 
 @pytest.mark.anyio
-async def test_model_chain_falls_through_to_next(writer, monkeypatch) -> None:
-    """第一個模型呼叫失敗（如 preview 下架）→ 換下一個；格式錯誤不換模型。"""
-    monkeypatch.setenv("VERTEX_TEXT_MODEL", "m-preview, m-ga")
+async def test_model_chain(monkeypatch) -> None:
+    """快模型呼叫失敗或重寫後仍不合格 → 換下一個模型；全部不行 → 規則式。"""
+    monkeypatch.setenv("STORY_LLM_ENABLED", "true")
+    monkeypatch.setenv("VERTEX_TEXT_MODEL", "fast, better")
     get_settings.cache_clear()
     w = sw.StoryWriter(get_settings())
     tried = []
 
     async def _model(self, model, text, mood, feedback):
         tried.append(model)
-        if model == "m-preview":
-            raise RuntimeError("404 NOT_FOUND")
-        return GOOD
+        return BAD_HOME if model == "fast" else GOOD
 
     monkeypatch.setattr(sw.StoryWriter, "_call_model", _model)
     plan = await w.write("高興 + 菜市場 + 老伴·買菜", "happy")
-    assert plan.source == "llm" and tried == ["m-preview", "m-ga"]
+    assert plan.source == "llm" and tried == ["fast", "fast", "better"]
+
+    tried.clear()
+
+    async def _down(self, model, text, mood, feedback):
+        tried.append(model)
+        if model == "fast":
+            raise RuntimeError("404 NOT_FOUND")
+        return BAD_HOME
+
+    monkeypatch.setattr(sw.StoryWriter, "_call_model", _down)
+    plan = await w.write("高興 + 菜市場 + 老伴·買菜", "happy")
+    assert plan.source == "rules" and tried == ["fast", "better", "better"]
+    get_settings.cache_clear()

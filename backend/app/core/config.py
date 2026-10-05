@@ -31,11 +31,11 @@ class Settings(BaseSettings):
     vertex_project: str = ""
     vertex_location: str = "global"
     vertex_image_model: str = "gemini-3-pro-image"
-    # 故事文字（標題／四格圖說／畫面描述）。逗號分隔＝依序備援（preview 下架時自動改用 GA）；
-    # 全部失敗或逾時自動退回規則式
-    vertex_text_model: str = "gemini-3-flash-preview,gemini-2.5-flash"
+    # 故事文字（標題／四格圖說／畫面描述）。逗號分隔＝依序嘗試：快的 GA 模型在前，
+    # 不合格（含重寫一次後）或呼叫失敗換下一個；全部失敗或逾時退回規則式
+    vertex_text_model: str = "gemini-2.5-flash,gemini-3-flash-preview"
     story_llm_enabled: bool = True
-    story_llm_timeout_s: float = 30.0  # 含一次重寫
+    story_llm_timeout_s: float = 45.0  # 含重寫與備援模型
     # 生圖失敗時是否回傳佔位結果（不中斷流程），供本機無 GCP 權限時開發
     image_gen_fallback: bool = True
 

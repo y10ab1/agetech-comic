@@ -10,7 +10,7 @@
    └──HTTPS──▶ Cloud Run  agetech-backend    (backend/Dockerfile，FastAPI)
                    │  Direct VPC egress（private-ranges-only）
                    ├──▶ GCE VM  agetech-pb  10.140.0.x:8090   PocketBase（日記 DB＋圖檔）
-                   └──▶ Vertex AI  gemini-3-flash-preview（備援 2.5-flash）寫故事 → gemini-3-pro-image 生圖
+                   └──▶ Vertex AI  gemini-2.5-flash（備援 3-flash-preview）寫故事 → gemini-3-pro-image 生圖
 ```
 
 | 元件 | GCP 資源 | repo 來源 |

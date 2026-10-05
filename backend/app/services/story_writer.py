@@ -142,7 +142,8 @@ _SYSTEM = """你是「樂齡漫畫日記」的說書人，幫台灣長輩把今�
 - summary：一句話總結今天（不超過 40 字），只含輸入有的資訊。
 - panels[i].caption：該格要念給長輩聽的完整句子（不可以逗號結尾、不可只有半句）。
 - panels[i].scene：給插畫家的畫面描述（中文，不超過 80 字）：主角是同一位台灣長輩，
-  寫出這一格的場景、動作、表情與輸入中出現的人物；不可出現文字、招牌字或對話框。"""
+  寫出這一格的場景、動作、表情與輸入中出現的人物；不可出現文字、招牌字或對話框。
+  畫面描述同樣不能編造：不可加入輸入沒有、會和主角互動的人物，不可指定時間點（早晨、夕陽等）。"""
 
 
 class _Panel(BaseModel):
@@ -212,18 +213,23 @@ def validate_story(raw: dict, fallback_summary: str) -> StoryPlan:
     )
 
 
-# 模型最常「順手補」的情節：時間點、回家。文字（標題／總結／圖說）出現而輸入沒有 → 視為編造。
-# 畫面描述（scene）只給生圖用、不念給長輩聽，不檢查。
+# 模型最常「順手補」的情節：時間點、餐別、移動／轉場。出現在輸出、但輸入沒有 → 視為編造。
+# 圖說／標題／總結（念給長輩聽）與畫面描述（決定畫什麼）都檢查。
 _GUARDED_TERMS = (
-    "一大早", "清晨", "早上", "上午", "中午", "下午", "傍晚", "晚上", "夜裡", "今晚", "半夜",
-    "回到家", "回家",
+    # 時間點
+    "一大早", "一早", "清晨", "早晨", "早上", "上午", "中午", "午後", "下午",
+    "傍晚", "黃昏", "天黑", "晚上", "今晚", "夜裡", "夜晚", "深夜", "半夜",
+    # 餐別（輸入只說「吃飯」時不可指定是哪一餐）
+    "早餐", "早飯", "午餐", "午飯", "晚餐", "晚飯",
+    # 移動／轉場
+    "回到家", "回家", "出門", "出發", "離開",
 )
 
 
 def find_fabrications(plan: StoryPlan, source_text: str) -> list[str]:
-    """回傳文字中出現、但輸入沒有的受控詞（空 list＝通過）。"""
-    spoken = plan.title + plan.summary + "".join(plan.captions)
-    return [t for t in _GUARDED_TERMS if t in spoken and t not in source_text]
+    """回傳輸出中出現、但輸入沒有的受控詞（空 list＝通過）。"""
+    out = plan.title + plan.summary + "".join(plan.captions) + "".join(plan.scenes)
+    return [t for t in _GUARDED_TERMS if t in out and t not in source_text]
 
 
 class StoryWriter:
@@ -245,20 +251,6 @@ class StoryWriter:
                 location=self._settings.vertex_location,
             )
         return self._client
-
-    async def _call_llm(self, text: str, mood: str | None, feedback: str = "") -> dict:
-        """依序嘗試 VERTEX_TEXT_MODEL（逗號分隔）；呼叫錯誤（如 preview 模型下架 404）換下一個。"""
-        models = [m.strip() for m in self._settings.vertex_text_model.split(",") if m.strip()]
-        last: Exception | None = None
-        for model in models:
-            try:
-                return await self._call_model(model, text, mood, feedback)
-            except (json.JSONDecodeError, ValueError):
-                raise  # 輸出格式問題交給上層（重寫／退回規則式），不換模型
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("文字模型 %s 呼叫失敗：%s", model, exc)
-                last = exc
-        raise RuntimeError(f"所有文字模型都失敗：{last}")
 
     async def _call_model(self, model: str, text: str, mood: str | None, feedback: str) -> dict:
         from google.genai.types import GenerateContentConfig, ThinkingConfig
@@ -282,37 +274,51 @@ class StoryWriter:
         return json.loads(resp.text)
 
     async def _attempt(
-        self, text: str, mood: str | None, summary: str, feedback: str = ""
+        self, model: str, text: str, mood: str | None, summary: str, feedback: str = ""
     ) -> tuple[StoryPlan | None, str]:
         """呼叫一次並檢查；回傳 (plan, 問題描述)，問題為空字串＝合格。"""
-        raw = await self._call_llm(text, mood, feedback)
+        raw = await self._call_model(model, text, mood, feedback)
         try:
             plan = validate_story(raw, summary)
         except (ValidationError, ValueError) as exc:
             return None, f"格式不合格（{str(exc)[:80]}）：每格要是完整句子、四格或零格、標題 14 字內。"
         bad = find_fabrications(plan, text)
         if bad:
-            return plan, f"輸入沒有提到「{'、'.join(bad)}」，不可以寫進標題、總結或圖說。"
+            return plan, f"輸入沒有提到「{'、'.join(bad)}」，不可以寫進標題、總結、圖說或畫面描述。"
         return plan, ""
 
+    async def _write_with(self, model: str, text: str, mood: str | None, summary: str) -> StoryPlan:
+        """單一模型：寫一次，不合格就帶具體問題重寫一次；仍不合格拋 ValueError。"""
+        plan, problem = await self._attempt(model, text, mood, summary)
+        if problem:
+            logger.info("故事（%s）需要重寫：%s", model, problem)
+            plan, problem = await self._attempt(model, text, mood, summary, problem)
+        if problem or plan is None:
+            raise ValueError(f"{model} 重寫後仍不合格：{problem}")
+        return plan
+
     async def write(self, text: str, mood: str | None = None) -> StoryPlan:
+        """依 VERTEX_TEXT_MODEL 順序嘗試（逗號分隔；快的在前、品質好的備援），
+        全部失敗／逾時退回規則式。"""
         fallback = rules_plan(text)
         if not self._settings.story_llm_enabled or not text.strip():
             return fallback
+        models = [m.strip() for m in self._settings.vertex_text_model.split(",") if m.strip()]
+        plan: StoryPlan | None = None
         try:
             with anyio.fail_after(self._settings.story_llm_timeout_s):
-                plan, problem = await self._attempt(text, mood, fallback.summary)
-                if problem:
-                    # 重寫一次並明確指出問題；仍不合格就退回規則式
-                    logger.info("故事需要重寫：%s", problem)
-                    plan, problem = await self._attempt(text, mood, fallback.summary, problem)
-                    if problem:
-                        raise ValueError(f"重寫後仍不合格：{problem}")
-        except (ValidationError, ValueError, TimeoutError, json.JSONDecodeError) as exc:
-            logger.warning("故事模型輸出不可用，改用規則式：%s", exc)
-            return fallback
-        except Exception as exc:  # noqa: BLE001 — GCP／網路錯誤一律退回規則式
-            logger.warning("故事模型呼叫失敗，改用規則式：%s", exc)
+                for model in models:
+                    try:
+                        plan = await self._write_with(model, text, mood, fallback.summary)
+                        break
+                    except (ValidationError, ValueError, json.JSONDecodeError) as exc:
+                        logger.warning("故事模型 %s 輸出不可用：%s", model, exc)
+                    except Exception as exc:  # noqa: BLE001 — GCP／網路錯誤（含模型下架 404）
+                        logger.warning("故事模型 %s 呼叫失敗：%s", model, exc)
+        except TimeoutError:
+            logger.warning("故事模型逾時（%ss），改用規則式", self._settings.story_llm_timeout_s)
+        if plan is None:
+            logger.warning("故事改用規則式")
             return fallback
         # 結構化輸入一定要能分四格；模型回空時採規則式圖說（標題／總結仍用模型的）
         if not plan.captions and fallback.captions:

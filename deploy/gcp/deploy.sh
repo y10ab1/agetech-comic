@@ -26,7 +26,7 @@ PB_SNAPSHOT_POLICY="agetech-pb-daily"
 PB_PASSWORD_SECRET="agetech-pb-admin-password"
 PB_ADMIN_EMAIL="admin@agetech.app"
 VERTEX_IMAGE_MODEL="${VERTEX_IMAGE_MODEL:-gemini-3-pro-image}"
-VERTEX_TEXT_MODEL="${VERTEX_TEXT_MODEL:-gemini-3-flash-preview,gemini-2.5-flash}"
+VERTEX_TEXT_MODEL="${VERTEX_TEXT_MODEL:-gemini-2.5-flash,gemini-3-flash-preview}"
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 TAG="$(git -C "$ROOT" rev-parse --short HEAD)$(git -C "$ROOT" diff --quiet HEAD -- . ':!deploy' || echo -dirty)"
