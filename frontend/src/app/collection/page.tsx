@@ -254,12 +254,25 @@ function StampCard({
         href={`/collection/${stamp.id}`}
         className="group block cursor-pointer text-inherit no-underline"
       >
-        {/* 正式封面待後端 AI 圖；舊資料與 mock 一律顯示「準備中」佔位圖 */}
-        <img
-          src={COVER_PLACEHOLDER}
-          alt={`「${title}」的漫畫封面（圖片準備中）`}
-          className="aspect-[4/3] w-full bg-[#efebe0] object-cover"
-        />
+        {/* 封面＝落章時保存的四格圖（contain：完整呈現四格不裁切）；
+            舊資料／生圖失敗沒有封面時顯示「準備中」佔位圖 */}
+        {(() => {
+          const hasCover =
+            !!stamp.coverSrc && stamp.coverSrc !== COVER_PLACEHOLDER;
+          return (
+            <img
+              src={hasCover ? stamp.coverSrc : COVER_PLACEHOLDER}
+              alt={
+                hasCover
+                  ? `「${title}」的四格漫畫封面`
+                  : `「${title}」的漫畫封面（圖片準備中）`
+              }
+              className={`aspect-[4/3] w-full bg-[#efebe0] ${
+                hasCover ? "object-contain" : "object-cover"
+              }`}
+            />
+          );
+        })()}
         <div className="p-4 pb-0">
           <h3 className="m-0 mb-1 text-[22px] leading-[1.4] text-[color:var(--color-text)]">
             {title}

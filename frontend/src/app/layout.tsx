@@ -10,9 +10,9 @@ const notoSansTC = Noto_Sans_TC({
 });
 
 export const metadata: Metadata = {
-  title: "樂齡時光繪本",
+  title: "樂齡漫畫日記",
   description:
-    "樂齡時光繪本 — 用點選、拍照或用講的，把今天的故事變成漫畫，念給家人聽。",
+    "樂齡漫畫日記 — 用點選、拍照或用講的，把今天的故事變成漫畫，念給家人聽。",
 };
 
 export default function RootLayout({

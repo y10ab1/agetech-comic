@@ -12,8 +12,10 @@ import {
 } from "./questions";
 import { DEFAULT_NARRATOR_ID, getNarrator } from "./narrator";
 import type {
+  DisplayPanel,
   DisplayScript,
   Expression,
+  QuadrantCaptions,
   QuestionOption,
   ScriptSegment,
   Selections,
@@ -90,7 +92,11 @@ export function buildTitle(
 ): string {
   const mood = selections.mood?.label ?? "美好";
   const place = selections.place?.label ?? "今天";
-  const lastEvent = events[events.length - 1]?.label;
+  const last = events[events.length - 1]?.label;
+  // 「對象·行動」→「和對象行動」（與後端 _event_phrase 同規則）
+  const lastEvent = last?.includes("·")
+    ? `和${last.split("·")[0]}${last.split("·").slice(1).join("")}`
+    : last;
   return lastEvent ? `${place}的一天：${lastEvent}` : `${place}的${mood}時光`;
 }
 
@@ -102,25 +108,49 @@ export function adaptComicResult(
   const panels = result.panels
     .slice()
     .sort((a, b) => a.order - b.order)
-    .map((p) => ({
+    .map((p): DisplayPanel => ({
       src: p.image_url || "/assets/comics/panel-placeholder.svg",
       alt: p.alt_text || p.caption || "漫畫分格",
       caption: p.caption,
+      placeholder: !p.image_url || undefined,
     }));
+  // 後端允許空 panels（生圖 fallback 且未持久化）：補佔位圖，
+  // 避免劇場整張圖無聲消失、share 頁取 panels[0] 出錯
+  if (panels.length === 0) {
+    panels.push({
+      src: "/assets/comics/panel-placeholder.svg",
+      alt: "漫畫準備中",
+      caption: "",
+      placeholder: true,
+    });
+  }
 
-  const sentences = splitNarration(result.narration || result.summary);
-  const segments: ScriptSegment[] = sentences.map((text, i) => {
-    const isLast = i === sentences.length - 1;
-    return {
-      text,
-      expression: isLast ? "laugh" : "smile",
-      panelIndex: Math.min(
-        i,
-        Math.max(0, panels.length - 1),
-      ),
-      accent: isLast,
-    };
-  });
+  const raw = result.quadrant_captions;
+  const quadrantCaptions: QuadrantCaptions | undefined =
+    raw && raw.length === 4 ? [raw[0], raw[1], raw[2], raw[3]] : undefined;
+
+  // 象限對位只信任結構化來源：有 quadrant_captions 時逐格生成 segments，
+  // panelIndex 由結構保證；沒有（舊後端）則切句照播但不高亮——
+  // 句序不是可靠的象限對應，寧可不框也不框錯格
+  const segments: ScriptSegment[] = quadrantCaptions
+    ? quadrantCaptions.flatMap((caption, quadrant) =>
+        splitNarration(caption).map(
+          (text): ScriptSegment => ({
+            text,
+            expression: "smile",
+            panelIndex: quadrant,
+          }),
+        ),
+      )
+    : splitNarration(result.narration || result.summary).map(
+        (text): ScriptSegment => ({ text, expression: "smile" }),
+      );
+  // 最後一句作為高潮 accent
+  const last = segments[segments.length - 1];
+  if (last) {
+    last.expression = "laugh";
+    last.accent = true;
+  }
 
   return {
     loglineText: buildLogline(flow.selections, flow.events),
@@ -129,6 +159,7 @@ export function adaptComicResult(
     narratorId: narrator.id,
     narratorName: narrator.name,
     panels,
+    quadrantCaptions,
     segments,
   };
 }
@@ -190,34 +221,27 @@ export function generateMockScript(flow: FlowSnapshot): DisplayScript {
   );
   const eventCaption = eventList.map((e) => e.label).join("、");
 
+  // 單張 2×2 四格圖（api-contract-additions.md §1-1）：
+  // alt 為依閱讀順序的短版總述；完整口述由 segments（劇場「完整故事」）承擔
   const panels = [
     {
-      src: "/assets/comics/panel-1.svg",
-      alt: `${salutation}的AI故事漫畫第一格：早晨起床，心情${mood}`,
-      caption: `第一格：今天一早醒來，心情${mood}。`,
+      src: "/assets/comics/comic-4grid.svg",
+      alt: `${salutation}的AI故事四格漫畫：早晨心情${mood}、${placeNarrative}、${eventCaption}、滿足回家`,
+      caption: "",
     },
-    {
-      src: "/assets/comics/panel-2.svg",
-      alt: `${salutation}的AI故事漫畫第二格：${placeNarrative}，${placeScene}`,
-      caption: `第二格：${placeNarrative}。`,
-    },
-    {
-      src: "/assets/comics/panel-3.svg",
-      alt: `${salutation}的AI故事漫畫第三格：${eventScenes.join("，接著")}`,
-      caption: `第三格：${eventCaption}，好開心。`,
-    },
-    {
-      src: "/assets/comics/panel-4.svg",
-      alt: `${salutation}的AI故事漫畫第四格：滿足地回到家，為今天畫下句點`,
-      caption: `第四格：滿足地回到家，真是美好的一天。`,
-    },
+  ];
+  const quadrantCaptions: QuadrantCaptions = [
+    `今天一早醒來，心情${mood}。`,
+    `${placeNarrative}。`,
+    `${eventCaption}，好開心。`,
+    `滿足地回到家，真是美好的一天。`,
   ];
 
   const segments: ScriptSegment[] = [];
+  // 開場問候是元敘事、不對應任何畫面：panelIndex 留空（不高亮）
   segments.push({
     text: `${salutation}，今天讓${name}來說說您的故事。`,
     expression: "smile",
-    panelIndex: 0,
   });
   segments.push({
     text: `今天一早醒來，您的心情${mood}。`,
@@ -250,6 +274,7 @@ export function generateMockScript(flow: FlowSnapshot): DisplayScript {
     narratorId: narrator.id,
     narratorName: name,
     panels,
+    quadrantCaptions,
     segments,
   };
 }
@@ -271,6 +296,8 @@ const PLACE_LABELS = new Set(
 /**
  * 由 logline（「高興 + 菜市場 + …」）重建說書腳本——阿咪「憑記憶再說一次」，
  * 全過去式、收藏感；退化不解釋（不出現「舊資料」「沒有錄音」等字眼）。
+ * panelIndex 對映與 mock 同構（心情 0、地點 1、事件 2、收尾 3），
+ * 供「有 panels（單張四格圖）卻無 segments」的資料也能正確逐格高亮。
  */
 export function buildMemoryScript(
   stamp: StampRecord,
@@ -286,6 +313,7 @@ export function buildMemoryScript(
   const place = labels.find((l) => PLACE_LABELS.has(l));
   const eventLabels = labels.filter((l) => l !== mood && l !== place);
 
+  // 開場問候是元敘事、不對應任何畫面：panelIndex 留空（不高亮）
   const segments: ScriptSegment[] = [
     {
       text: `${salutation}，還記得${dateText}這一天嗎？讓${name}再說一次給您聽。`,
@@ -296,6 +324,7 @@ export function buildMemoryScript(
     segments.push({
       text: `那天一早，您的心情${mood}。`,
       expression: moodExpression(mood),
+      panelIndex: 0,
     });
   }
   if (place) {
@@ -305,6 +334,7 @@ export function buildMemoryScript(
           ? "那天您在家裡好好休息。"
           : `那天您去了${place}。`,
       expression: "smile",
+      panelIndex: 1,
     });
   }
   eventLabels.forEach((label, i) => {
@@ -313,12 +343,14 @@ export function buildMemoryScript(
     segments.push({
       text: isLast ? `最棒的是，您${scene}，真是太好了！` : `您${scene}。`,
       expression: isLast ? "laugh" : "smile",
+      panelIndex: 2,
       accent: isLast,
     });
   });
   segments.push({
     text: `謝謝您把這一天記下來，真好。`,
     expression: "smile",
+    panelIndex: 3,
   });
   return segments;
 }
