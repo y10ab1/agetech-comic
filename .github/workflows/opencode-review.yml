@@ -1,0 +1,35 @@
+name: Local OpenCode PR review
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to review
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opencode-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.draft == false &&
+       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association))
+    runs-on: [self-hosted, linux, x64, agetech-opencode-review]
+    timeout-minutes: 45
+    steps:
+      # Deliberately use the locally installed controller, not scripts from the PR.
+      # pull_request_target loads this workflow from the trusted base branch.
+      - name: Review exact PR revision with local OpenCode
+        env:
+          REVIEW_PR: ${{ github.event.pull_request.number || inputs.pr_number }}
+          REVIEW_EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: /usr/bin/python3 "$HOME/.local/share/agetech-pr-review/review.py"
