@@ -243,3 +243,10 @@ async def test_model_chain(monkeypatch) -> None:
     plan = await w.write("高興 + 菜市場 + 老伴·買菜", "happy")
     assert plan.source == "rules" and tried == ["fast", "better", "better"]
     get_settings.cache_clear()
+
+
+def test_find_fabrications_synonyms() -> None:
+    plan = sw.validate_story({**GOOD, "panels": GOOD["panels"][:3] + [
+        {"caption": "一起吃午餐，早晨真好。", "scene": "s"}]}, "x")
+    assert sw.find_fabrications(plan, "早上和老伴吃午飯") == []
+    assert sw.find_fabrications(plan, "和老伴吃飯") == ["早晨", "午餐"]

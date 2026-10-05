@@ -227,6 +227,18 @@ _GUARDED_TERMS = (
 
 
 _NEGATIONS = ("沒有", "沒", "不想", "不用", "不必", "不", "別", "未")
+# 同義詞：輸入提到其中一個，輸出用同組其他說法不算編造
+_SYNONYM_GROUPS = (
+    ("一大早", "一早", "清晨", "早晨", "早上"),
+    ("早餐", "早飯"),
+    ("午餐", "午飯"),
+    ("晚餐", "晚飯"),
+    ("傍晚", "黃昏"),
+    ("晚上", "今晚", "夜裡", "夜晚"),
+    ("深夜", "半夜"),
+    ("回到家", "回家"),
+)
+_SYNONYMS = {t: g for g in _SYNONYM_GROUPS for t in g}
 
 
 def _affirmed(text: str, term: str) -> bool:
@@ -246,7 +258,12 @@ def find_fabrications(plan: StoryPlan, source_text: str) -> list[str]:
     例：輸入「沒有出門」→ 輸出「沒有出門」可以，「出門走走」不行。
     """
     out = plan.title + plan.summary + "".join(plan.captions) + "".join(plan.scenes)
-    return [t for t in _GUARDED_TERMS if _affirmed(out, t) and not _affirmed(source_text, t)]
+    return [
+        t
+        for t in _GUARDED_TERMS
+        if _affirmed(out, t)
+        and not any(_affirmed(source_text, syn) for syn in _SYNONYMS.get(t, (t,)))
+    ]
 
 
 class StoryWriter:
