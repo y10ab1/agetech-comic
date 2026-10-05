@@ -101,9 +101,15 @@ class PocketBaseClient:
             resp = await client.post(
                 url, headers={"Authorization": token}, data=data, files=files or None
             )
-            if resp.status_code == 400 and "narration_audio" in files:
+            if (
+                resp.status_code == 400
+                and "narration_audio" in files
+                and self._rejected_field(resp) == "narration_audio"
+            ):
                 # 音檔被拒（格式/大小不符白名單）不該連圖與日記一起丟：去掉音檔重試
-                logger.warning("旁白音檔被拒，改存不含音檔的日記：%s", resp.text)
+                logger.warning(
+                    "旁白音檔被 PocketBase 拒絕（%s），改存不含音檔的日記", resp.text
+                )
                 files.pop("narration_audio")
                 resp = await client.post(
                     url, headers={"Authorization": token}, data=data, files=files or None
@@ -118,6 +124,15 @@ class PocketBaseClient:
         if record.get("comic"):
             cover_url = self.file_url(record, record["comic"])
         return record["id"], cover_url, self._audio_url(record)
+
+    @staticmethod
+    def _rejected_field(resp: httpx.Response) -> str | None:
+        """PocketBase 400 驗證錯誤中唯一被拒的欄位名（多欄或無法解析時回 None）。"""
+        try:
+            fields = list((resp.json().get("data") or {}).keys())
+        except ValueError:
+            return None
+        return fields[0] if len(fields) == 1 else None
 
     def _audio_url(self, record: dict) -> str | None:
         """旁白音檔公開網址；沒有音檔（含 migration 前的舊紀錄）時回 None。"""

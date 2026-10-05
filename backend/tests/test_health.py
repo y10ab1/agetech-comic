@@ -185,3 +185,62 @@ async def test_title_structured_matches_frontend_rule() -> None:
     assert await gen.build_title("高興 + 樂齡中心 + 朋友·泡茶聊天 + 運動") == "樂齡中心的一天：運動"
     assert await gen.build_title("平靜 + 公園散步 + 老伴·散散步") == "公園散步的一天：和老伴散散步"
     assert await gen.build_title("今天去公園，很開心") == "今天去公園"
+
+
+def _pb_with_transport(handler):
+    """PocketBaseClient，HTTP 走 MockTransport（不連真 PocketBase）。"""
+    import httpx
+
+    from app.services import pocketbase_client as mod
+
+    real = httpx.AsyncClient
+
+    class _Client(real):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, transport=httpx.MockTransport(handler), **kw)
+
+    pb = mod.PocketBaseClient(get_settings())
+    return pb, _Client
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("rejected", "expect_retry"),
+    [("narration_audio", True), ("comic", False)],
+)
+async def test_create_diary_audio_rejected_retries_without_audio(
+    monkeypatch, rejected, expect_retry
+) -> None:
+    """音檔被拒才去掉音檔重試；其他欄位被拒照常報錯。"""
+    import httpx
+
+    from app.services import pocketbase_client as mod
+
+    posts: list[bytes] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("auth-with-password"):
+            return httpx.Response(200, json={"token": "t"})
+        posts.append(request.content)
+        if len(posts) == 1:
+            return httpx.Response(400, json={"data": {rejected: {"code": "x"}}})
+        return httpx.Response(
+            200, json={"id": "r1", "collectionId": "c1", "comic": "", "narration_audio": ""}
+        )
+
+    pb, client_cls = _pb_with_transport(handler)
+    monkeypatch.setattr(mod.httpx, "AsyncClient", client_cls)
+    kwargs = dict(
+        user_id="u", title="t", tags=[], mood=None, style=None, logline="l",
+        image_bytes=b"png", audio_bytes=b"mp3",
+    )
+    if expect_retry:
+        assert await pb.create_diary(**kwargs) == ("r1", "", None)
+        assert len(posts) == 2
+        assert b'name="narration_audio"' in posts[0]
+        assert b'name="narration_audio"' not in posts[1]
+        assert b'name="comic"' in posts[1]
+    else:
+        with pytest.raises(mod.PocketBaseError):
+            await pb.create_diary(**kwargs)
+        assert len(posts) == 1
