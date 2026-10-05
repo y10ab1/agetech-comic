@@ -104,7 +104,7 @@ export async function generateComic(
     headers["X-Debug-User"] = options.debugUser;
   }
 
-  // 生圖約 30–60 秒；超過 3 分鐘視為失敗，讓劇場顯示「再試一次」而非無限等待。
+  // 整體生成約 10–20 秒（Lite 生圖；故事模型重寫或備援時更久）；超過 3 分鐘視為失敗，讓劇場顯示「再試一次」而非無限等待。
   // 不用 AbortSignal.timeout：舊版 Safari／Android WebView（長輩手機、LINE 內建瀏覽器）沒有
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 180_000);
