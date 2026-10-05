@@ -14,6 +14,7 @@ def _isolate_external(monkeypatch):
     monkeypatch.setenv("PERSIST_DIARIES", "false")
     monkeypatch.setenv("IMAGE_GEN_FALLBACK", "true")
     monkeypatch.setenv("ENV", "dev")
+    monkeypatch.setenv("STORY_LLM_ENABLED", "false")  # 不打真的 Vertex 文字模型
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
@@ -159,7 +160,7 @@ def test_logline_whitelist_matches_frontend() -> None:
     import re
     from pathlib import Path
 
-    from app.services.comic_generator import MOOD_LABELS, PLACE_LABELS
+    from app.services.story_writer import MOOD_LABELS, PLACE_LABELS
 
     src = Path(__file__).resolve().parents[2] / "frontend/src/data/questions.ts"
     if not src.exists():

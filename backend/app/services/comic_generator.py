@@ -1,10 +1,8 @@
 """AI 漫畫生成服務（協調層）。
 
-流程：日記文字 → 總結 → 生成單張四格漫畫圖（Vertex）→（可選）存 PocketBase
-     → 產生無障礙口述 → 回傳 ComicResult。
-
-目前總結（summarize）、標題（title）、tag 判斷、口述（narration）為輕量
-規則式 / stub，待接 LLM 時再強化；圖片生成已接 Vertex Nano Banana 2。
+流程：日記文字 → 故事企劃（Vertex 文字模型：標題／總結／四格圖說＋畫面；
+     失敗退回規則式，見 story_writer.py）→ 依同一份四格企劃生成單張四格漫畫圖
+     （Vertex 生圖）→（可選）存 PocketBase → 回傳 ComicResult。
 """
 
 import io
@@ -18,18 +16,17 @@ from app.core.config import Settings
 from app.models.comic import ComicPanel, ComicResult, DiaryEntry
 from app.services.image_generator import ImageGenerationError, VertexImageGenerator
 from app.services.pocketbase_client import PocketBaseClient, PocketBaseError
+from app.services.story_writer import (  # noqa: F401 — MOOD/PLACE_LABELS 供外部引用
+    MOOD_LABELS,
+    PLACE_LABELS,
+    StoryWriter,
+    event_phrase,
+    parse_logline,
+    rules_captions,
+    rules_title,
+)
 
 logger = logging.getLogger(__name__)
-
-# 結構化 logline 前兩段的合法 label（與 frontend/src/data/questions.ts 的
-# mood／place 選項同步；tests/test_health.py 會比對前端檔案防漂移）
-MOOD_LABELS = frozenset({"高興", "平靜", "有點累"})
-PLACE_LABELS = frozenset({"菜市場", "公園散步", "樂齡中心", "待在家裡"})
-_PLACE_CAPTIONS = {
-    "公園散步": "今天去公園散步。",
-    "待在家裡": "今天待在家裡。",
-}
-
 
 def compress_comic(image_bytes: bytes) -> tuple[bytes, str, str]:
     """生圖原檔（PNG 約 7MB）轉 WebP q85（約 0.8MB），長輩手機與 LINE 分享載得動。
@@ -53,77 +50,22 @@ class ComicGenerator:
         self._settings = settings
         self._image_gen = VertexImageGenerator(settings)
         self._pb = PocketBaseClient(settings) if settings.persist_diaries else None
+        self._writer = StoryWriter(settings)
+
+    # ---- 規則式（story_writer 的 fallback；保留方法供測試與外部呼叫） ----
 
     async def summarize(self, text: str) -> str:
-        """把當天描述總結成適合做漫畫的簡短敘事。
-
-        TODO: 串接 LLM。目前直接沿用輸入（前端已送結構化 logline）。
-        """
         return text.strip()[:200]
 
     async def build_title(self, summary: str) -> str:
-        """為故事下標題。TODO: 交給 LLM。
+        return rules_title(summary)
 
-        結構化 logline 與前端 buildTitle 同規則（「地點的一天：最後一件事」）；
-        其餘取前段當標題。
-        """
-        parsed = self.parse_logline(summary)
-        if parsed is not None:
-            _, place, events = parsed
-            return f"{place}的一天：{self._event_phrase(events[-1])}"[:40]
-        head = summary.split("，")[0].split(" ")[0].strip()
-        return head[:20] or "今天的故事"
-
-    @staticmethod
-    def parse_logline(summary: str) -> tuple[str, str, list[str]] | None:
-        """解析前端圖卡流程送來的結構化 logline（見 frontend/src/data/logline.ts）。
-
-        格式為「心情 + 地點 + 事件1 + 事件2…」，至少 3 段（對齊前端 isComplete：
-        心情、地點皆選且至少一件事），且心情／地點須為白名單 label。
-        不符合（自由文字、語音／拍照輸入）回 None。
-        """
-        if " + " not in summary:
-            return None
-        parts = [p.strip() for p in summary.split(" + ")]
-        if len(parts) < 3 or any(not p for p in parts):
-            return None
-        if parts[0] not in MOOD_LABELS or parts[1] not in PLACE_LABELS:
-            return None
-        return parts[0], parts[1], parts[2:]
-
-    @staticmethod
-    def _event_phrase(label: str) -> str:
-        """事件 label →圖說短句。「對象·行動」→「和對象行動」；單人事件原樣。"""
-        if "·" in label:
-            who, action = label.split("·", 1)
-            return f"和{who}{action}"
-        return label
+    parse_logline = staticmethod(parse_logline)
+    _event_phrase = staticmethod(event_phrase)
 
     async def build_quadrant_captions(self, summary: str) -> list[str]:
-        """四個象限的圖說（閱讀順序左上→右上→左下→右下，恰 4 筆；無法可靠分格時為空）。
-
-        TODO: 交給 LLM 依實際生成畫面撰寫。目前規則式，且只用輸入裡**確實有**
-        的資訊，不補任何使用者沒說的情節：
-        心情 → 地點 → 第一件事 → 其餘的事（只有一件時以「記下今天」收尾）。
-        非結構化輸入回空 list：前端照原旁白朗讀、不做象限同步。
-        """
-        parsed = self.parse_logline(summary)
-        if parsed is None:
-            return []
-        mood, place, events = parsed
-        phrases = [self._event_phrase(e) for e in events]
-        place_caption = _PLACE_CAPTIONS.get(place, f"今天去了{place}。")
-        last = (
-            "還有" + "、".join(phrases[1:]) + "。"
-            if len(phrases) > 1
-            else "把今天的事記了下來。"
-        )
-        return [
-            f"今天的心情：{mood}。",
-            place_caption,
-            f"{phrases[0]}。",
-            last,
-        ]
+        """規則式四格圖說（只用輸入確實有的資訊；非結構化輸入回空 list）。"""
+        return rules_captions(summary)
 
     @staticmethod
     def build_alt_text(summary: str, quadrant_captions: list[str]) -> str:
@@ -149,17 +91,17 @@ class ComicGenerator:
 
     async def create_comic(self, entry: DiaryEntry) -> ComicResult:
         """完整流程：日記 → 四格漫畫（→ 持久化）。"""
-        summary = await self.summarize(entry.text)
-        title = await self.build_title(summary)
-        quadrant_captions = await self.build_quadrant_captions(summary)
+        plan = await self._writer.write(entry.text, entry.mood)
+        summary, title, quadrant_captions = plan.summary, plan.title, plan.captions
         narration = await self.build_narration(summary, quadrant_captions)
+        logger.info("故事企劃來源：%s（%d 格）", plan.source, len(quadrant_captions))
 
         # 1) 生成單張四格漫畫圖
         image_bytes: bytes | None = None
         try:
-            # 生圖與圖說共用同一份四格配置，畫面才對得上象限高亮
+            # 生圖與圖說共用同一份四格企劃（有畫面描述用畫面描述），對得上象限高亮
             image_bytes = await self._image_gen.generate_comic_image(
-                summary, entry.style, panel_plan=quadrant_captions or None
+                summary, entry.style, panel_plan=(plan.scenes or quadrant_captions) or None
             )
         except ImageGenerationError as exc:
             if not self._settings.image_gen_fallback:

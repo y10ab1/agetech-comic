@@ -154,7 +154,7 @@ export default function TheaterPage() {
     phase === "loading"
       ? failed
         ? `${narrator.name}剛剛沒畫好，請按「再試一次」。`
-        : `${narrator.name}正在把您的故事畫成漫畫，大約要半分鐘，請稍等一下下…`
+        : `${narrator.name}正在幫您寫故事、畫漫畫，大約要一分鐘，請稍等一下下…`
       : isPlaybackActive
         ? seg?.text ?? ""
         : `故事和漫畫都準備好了，想聽${narrator.name}念給您聽嗎？`;
