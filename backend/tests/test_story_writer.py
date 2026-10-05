@@ -168,8 +168,19 @@ def test_find_fabrications() -> None:
     plan = sw.validate_story(sneaky, "x")
     assert sw.find_fabrications(plan, "高興 + 待在家裡 + 老伴·一起吃飯") == [
         "早晨", "黃昏", "晚餐", "出門"]
-    # 輸入本身有的詞允許（「沒有出門」含「出門」）
-    assert "出門" not in sw.find_fabrications(plan, "今天沒有出門，晚餐和老伴吃，黃昏早晨都在家")
+    # 輸入肯定提到的詞允許
+    assert sw.find_fabrications(plan, "早晨黃昏都和老伴在一起，晚餐後出門") == []
+
+
+def test_find_fabrications_negation() -> None:
+    """輸入「沒有出門」：輸出照樣說「沒有出門」可以，寫成「出門走走」不行。"""
+    src = "今天整天待在家裡休息，沒有出門。"
+    ok = sw.validate_story({**GOOD, "panels": GOOD["panels"][:3] + [
+        {"caption": "沒有出門，好好休息。", "scene": "長輩在沙發上休息"}]}, "x")
+    assert sw.find_fabrications(ok, src) == []
+    bad = sw.validate_story({**GOOD, "panels": GOOD["panels"][:3] + [
+        {"caption": "下午出門走走。", "scene": "長輩在沙發上休息"}]}, "x")
+    assert sw.find_fabrications(bad, src) == ["下午", "出門"]
 
 
 @pytest.mark.anyio

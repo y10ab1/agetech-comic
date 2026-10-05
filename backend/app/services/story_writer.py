@@ -226,10 +226,27 @@ _GUARDED_TERMS = (
 )
 
 
+_NEGATIONS = ("沒有", "沒", "不想", "不用", "不必", "不", "別", "未")
+
+
+def _affirmed(text: str, term: str) -> bool:
+    """term 是否以「肯定」語意出現（前面緊接否定詞的「沒有出門」不算）。"""
+    start = text.find(term)
+    while start != -1:
+        before = text[max(0, start - 3) : start]
+        if not any(before.endswith(n) for n in _NEGATIONS):
+            return True
+        start = text.find(term, start + 1)
+    return False
+
+
 def find_fabrications(plan: StoryPlan, source_text: str) -> list[str]:
-    """回傳輸出中出現、但輸入沒有的受控詞（空 list＝通過）。"""
+    """回傳輸出以肯定語意寫出、但輸入沒有肯定提到的受控詞（空 list＝通過）。
+
+    例：輸入「沒有出門」→ 輸出「沒有出門」可以，「出門走走」不行。
+    """
     out = plan.title + plan.summary + "".join(plan.captions) + "".join(plan.scenes)
-    return [t for t in _GUARDED_TERMS if t in out and t not in source_text]
+    return [t for t in _GUARDED_TERMS if _affirmed(out, t) and not _affirmed(source_text, t)]
 
 
 class StoryWriter:
