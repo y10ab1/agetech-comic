@@ -62,6 +62,8 @@ def test_generate_comic_contract_fields(client, monkeypatch) -> None:
     # 自由文字無可靠分格：不給象限圖說，旁白保留原文
     assert data["quadrant_captions"] == []
     assert "今天去公園散步，還餵了鴿子。" in data["narration"]
+    # issue #9：音檔欄位預留，尚無 TTS 時一律為 null
+    assert data["narration_audio_url"] is None
     # fallback 情況下沒有圖，panels 為空
     assert data["panels"] == []
 
@@ -133,6 +135,25 @@ def test_prompt_shares_panel_plan() -> None:
     assert "左上" not in VertexImageGenerator(get_settings()).build_prompt("s", None)
 
 
+def test_to_record_narration_fields() -> None:
+    """issue #9：_to_record 帶出 narration／narration_audio_url；舊紀錄缺欄位時為空值。"""
+    from app.core.config import get_settings
+    from app.services.pocketbase_client import PocketBaseClient
+
+    pb = PocketBaseClient(get_settings())
+    base = {"id": "r1", "collectionId": "c1", "user_id": "u", "created_at": "2026-10-05"}
+
+    legacy = pb._to_record(base)
+    assert legacy.narration == ""
+    assert legacy.narration_audio_url is None
+
+    with_audio = pb._to_record(
+        {**base, "narration": "今天去公園。", "narration_audio": "narration_abc.mp3"}
+    )
+    assert with_audio.narration == "今天去公園。"
+    assert with_audio.narration_audio_url.endswith("/api/files/c1/r1/narration_abc.mp3")
+
+
 def test_logline_whitelist_matches_frontend() -> None:
     """後端 mood／place 白名單需與前端 questions.ts 選項一致（防漂移）。"""
     import re
@@ -164,3 +185,62 @@ async def test_title_structured_matches_frontend_rule() -> None:
     assert await gen.build_title("高興 + 樂齡中心 + 朋友·泡茶聊天 + 運動") == "樂齡中心的一天：運動"
     assert await gen.build_title("平靜 + 公園散步 + 老伴·散散步") == "公園散步的一天：和老伴散散步"
     assert await gen.build_title("今天去公園，很開心") == "今天去公園"
+
+
+def _pb_with_transport(handler):
+    """PocketBaseClient，HTTP 走 MockTransport（不連真 PocketBase）。"""
+    import httpx
+
+    from app.services import pocketbase_client as mod
+
+    real = httpx.AsyncClient
+
+    class _Client(real):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, transport=httpx.MockTransport(handler), **kw)
+
+    pb = mod.PocketBaseClient(get_settings())
+    return pb, _Client
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("rejected", "expect_retry"),
+    [("narration_audio", True), ("comic", False)],
+)
+async def test_create_diary_audio_rejected_retries_without_audio(
+    monkeypatch, rejected, expect_retry
+) -> None:
+    """音檔被拒才去掉音檔重試；其他欄位被拒照常報錯。"""
+    import httpx
+
+    from app.services import pocketbase_client as mod
+
+    posts: list[bytes] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("auth-with-password"):
+            return httpx.Response(200, json={"token": "t"})
+        posts.append(request.content)
+        if len(posts) == 1:
+            return httpx.Response(400, json={"data": {rejected: {"code": "x"}}})
+        return httpx.Response(
+            200, json={"id": "r1", "collectionId": "c1", "comic": "", "narration_audio": ""}
+        )
+
+    pb, client_cls = _pb_with_transport(handler)
+    monkeypatch.setattr(mod.httpx, "AsyncClient", client_cls)
+    kwargs = dict(
+        user_id="u", title="t", tags=[], mood=None, style=None, logline="l",
+        image_bytes=b"png", audio_bytes=b"mp3",
+    )
+    if expect_retry:
+        assert await pb.create_diary(**kwargs) == ("r1", "", None)
+        assert len(posts) == 2
+        assert b'name="narration_audio"' in posts[0]
+        assert b'name="narration_audio"' not in posts[1]
+        assert b'name="comic"' in posts[1]
+    else:
+        with pytest.raises(mod.PocketBaseError):
+            await pb.create_diary(**kwargs)
+        assert len(posts) == 1

@@ -60,6 +60,10 @@ class ComicResult(BaseModel):
     cover_url: str = Field("", description="封面圖網址（單張四格圖時＝該圖）")
     # 持久化後回傳的日記紀錄 id（未持久化時為 None）
     diary_id: str | None = Field(None, description="PocketBase 日記紀錄 id")
+    # 後端 TTS 旁白音檔（issue #9；尚未生成時為 None，前端退回瀏覽器 TTS）
+    narration_audio_url: str | None = Field(
+        None, description="旁白音檔網址（mp3/m4a）；None＝無音檔，前端退回瀏覽器 TTS"
+    )
 
 
 class DiaryRecord(BaseModel):
@@ -74,6 +78,10 @@ class DiaryRecord(BaseModel):
     style: str | None = None
     cover_url: str = ""
     logline: str = ""
+    # 生成當下的完整旁白文字（回顧時重播「當天旁白」；舊資料為空字串）
+    narration: str = ""
+    # 旁白音檔網址（issue #9；無音檔時為 None，前端退回瀏覽器 TTS）
+    narration_audio_url: str | None = None
 
 
 class DiaryListResponse(BaseModel):

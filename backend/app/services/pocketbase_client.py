@@ -1,7 +1,8 @@
 """PocketBase DB / 檔案儲存層（後端以 HTTP 存取，前端不直接碰）。
 
 - 以 superuser 密碼登入取得 token（bypass 所有 collection rules）。
-- 日記紀錄寫入 `diaries` collection，並以 multipart 上傳四格漫畫圖檔。
+- 日記紀錄寫入 `diaries` collection，並以 multipart 上傳四格漫畫圖檔
+  （及可選的旁白音檔 narration_audio）。
 - schema 由 pb_migrations/ 版控（見 pocketbase/pb_migrations）。
 """
 
@@ -65,13 +66,22 @@ class PocketBaseClient:
         logline: str,
         image_bytes: bytes | None,
         image_filename: str = "comic.png",
-    ) -> tuple[str, str]:
-        """建立一筆日記紀錄，回傳 (record_id, cover_url)。"""
+        narration: str = "",
+        audio_bytes: bytes | None = None,
+        audio_filename: str = "narration.mp3",
+        audio_mime: str = "audio/mpeg",
+    ) -> tuple[str, str, str | None]:
+        """建立一筆日記紀錄，回傳 (record_id, cover_url, narration_audio_url)。
+
+        audio_bytes 為後端 TTS 旁白音檔（issue #9）；目前尚未實作 TTS，
+        呼叫端不帶時音檔欄位留空、narration_audio_url 回 None。
+        """
         data = {
             "user_id": user_id,
             "title": title,
             "tags": ",".join(tags),  # 以逗號字串儲存，讀取時再拆
             "logline": logline,
+            "narration": narration,
             "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         }
         if mood:
@@ -79,18 +89,31 @@ class PocketBaseClient:
         if style:
             data["style"] = style
 
-        files = None
+        files: dict[str, tuple[str, bytes, str]] = {}
         if image_bytes:
-            files = {"comic": (image_filename, image_bytes, "image/png")}
+            files["comic"] = (image_filename, image_bytes, "image/png")
+        if audio_bytes:
+            files["narration_audio"] = (audio_filename, audio_bytes, audio_mime)
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             token = await self._authenticate(client)
+            url = f"{self._base}/api/collections/{_DIARIES}/records"
             resp = await client.post(
-                f"{self._base}/api/collections/{_DIARIES}/records",
-                headers={"Authorization": token},
-                data=data,
-                files=files,
+                url, headers={"Authorization": token}, data=data, files=files or None
             )
+            if (
+                resp.status_code == 400
+                and "narration_audio" in files
+                and self._rejected_field(resp) == "narration_audio"
+            ):
+                # 音檔被拒（格式/大小不符白名單）不該連圖與日記一起丟：去掉音檔重試
+                logger.warning(
+                    "旁白音檔被 PocketBase 拒絕（%s），改存不含音檔的日記", resp.text
+                )
+                files.pop("narration_audio")
+                resp = await client.post(
+                    url, headers={"Authorization": token}, data=data, files=files or None
+                )
             if resp.status_code not in (200, 201):
                 raise PocketBaseError(
                     f"建立日記失敗：{resp.status_code} {resp.text}"
@@ -100,7 +123,21 @@ class PocketBaseClient:
         cover_url = ""
         if record.get("comic"):
             cover_url = self.file_url(record, record["comic"])
-        return record["id"], cover_url
+        return record["id"], cover_url, self._audio_url(record)
+
+    @staticmethod
+    def _rejected_field(resp: httpx.Response) -> str | None:
+        """PocketBase 400 驗證錯誤中唯一被拒的欄位名（多欄或無法解析時回 None）。"""
+        try:
+            fields = list((resp.json().get("data") or {}).keys())
+        except ValueError:
+            return None
+        return fields[0] if len(fields) == 1 else None
+
+    def _audio_url(self, record: dict) -> str | None:
+        """旁白音檔公開網址；沒有音檔（含 migration 前的舊紀錄）時回 None。"""
+        filename = record.get("narration_audio")
+        return self.file_url(record, filename) if filename else None
 
     async def list_diaries(
         self, *, user_id: str, month: str | None = None
@@ -155,4 +192,6 @@ class PocketBaseClient:
             style=item.get("style") or None,
             cover_url=cover_url,
             logline=item.get("logline", ""),
+            narration=item.get("narration", "") or "",
+            narration_audio_url=self._audio_url(item),
         )

@@ -22,6 +22,7 @@
 | `title` | `str` | AI 依故事內容下的標題（如「菜市場的一天：跟朋友泡茶」），集章存摺卡片顯示用 |
 | `tags` | `list[str]` | **限定 taxonomy**（見下方白名單）。拍照/語音輸入時由 AI 判斷；圖卡輸入時可由前端傳入或後端重算 |
 | `cover_url` | `str` | 封面圖（可用第一格或另生成）。前端目前以「準備中」佔位圖呈現，拿到即替換 |
+| `narration_audio_url` | `str \| None` | 後端 TTS 旁白音檔（issue #9，預留）。`null`＝無音檔，前端退回瀏覽器 `speechSynthesis` |
 
 **tags 白名單**（controlled vocabulary，禁止自由生成）——
 **唯一事實來源：repo 根目錄 `shared/tags.json`**（前端直接 import、後端載入餵 DB seed 與 `GET /tags`）。
@@ -70,6 +71,10 @@
     副本見 `frontend/src/data/tags.ts`。
 - **讀取**：`GET /me/diaries?month=2026-07` → 該月日記陣列（集章存摺頁用）；
   另附 `total_count`（集點卡進度）與 `recorded_today: bool`。
+- **旁白（issue #9）**：diaries 另存 `narration`（生成當下完整旁白文字）與
+  `narration_audio`（可空音檔，mp3/m4a/aac ≤20MB；增量 migration `1700000001_add_diaries_narration.js`）。
+  `GET /me/diaries` 項目回 `narration` 與 `narration_audio_url`（無音檔為 `null`）。
+  TTS 生成本身為後續工作；若需音檔與象限同步，屆時再補分段時間資訊或分段音檔。
 - 前端切換方式：`data/collection.ts` 已隔離存取層，換成 API 呼叫即可，頁面不動。
 
 ## 4. 身分驗證（P1）
