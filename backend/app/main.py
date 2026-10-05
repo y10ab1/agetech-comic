@@ -8,7 +8,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import comics, line_webhook
+from app.api import comics, files, line_webhook
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -25,6 +25,7 @@ app.add_middleware(
 
 app.include_router(line_webhook.router)
 app.include_router(comics.router)
+app.include_router(files.router)
 
 
 @app.get("/health", tags=["system"])

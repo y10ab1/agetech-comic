@@ -15,5 +15,5 @@ COPY app ./app
 
 EXPOSE 8000
 
-# 正式模式啟動
-CMD ["uv", "run", "--no-dev", "fastapi", "run", "app/main.py", "--host", "0.0.0.0", "--port", "8000"]
+# 正式模式啟動（Cloud Run 會注入 PORT；本機 compose 沒設則用 8000）
+CMD ["sh", "-c", "exec uv run --no-dev fastapi run app/main.py --host 0.0.0.0 --port ${PORT:-8000}"]

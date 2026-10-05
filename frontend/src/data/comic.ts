@@ -38,6 +38,8 @@ export interface FlowSnapshot {
  * 預設 true，讓沒有後端也能 demo；後端就緒後設 NEXT_PUBLIC_USE_MOCK=false。
  */
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
+/** 是否為 mock 展示模式（正式部署 build 時設 NEXT_PUBLIC_USE_MOCK=false） */
+export const IS_MOCK = USE_MOCK;
 
 const VALID_MOODS: readonly Mood[] = ["happy", "calm", "tired"];
 
@@ -50,21 +52,18 @@ function resolveMood(selections: Selections): Mood | undefined {
 /**
  * 前端唯一的漫畫生成入口。
  * 走真後端時：POST /comics/generate（見 lib/api.ts）→ 轉成顯示模型；
- * 失敗或 mock 模式時：退回本地 mock，維持可展示。
+ * 失敗時拋錯，由劇場顯示「再試一次」——正式版不能拿假漫畫冒充當天故事去落章。
+ * mock 模式：本地假資料，供無後端展示。
  */
 export async function createComic(flow: FlowSnapshot): Promise<DisplayScript> {
   if (!USE_MOCK) {
-    try {
-      const result = await apiGenerateComic({
-        user_id: flow.userId ?? "demo-user",
-        text: buildLogline(flow.selections, flow.events),
-        style: flow.styleId || undefined,
-        mood: resolveMood(flow.selections),
-      });
-      return adaptComicResult(result, flow);
-    } catch {
-      // 後端出錯時退回 mock，避免展示中斷
-    }
+    const result = await apiGenerateComic({
+      user_id: flow.userId ?? "demo-user",
+      text: buildLogline(flow.selections, flow.events),
+      style: flow.styleId || undefined,
+      mood: resolveMood(flow.selections),
+    });
+    return adaptComicResult(result, flow);
   }
   await delay(1600);
   return generateMockScript(flow);
@@ -436,7 +435,18 @@ export function buildGreeting(
   return `今天${placePhrase}，${moodFeel}${narratorName}把今天畫成漫畫了——${hook}`;
 }
 
-/** 模擬分享到 LINE 家族群組，回傳溫暖問候語 */
+/**
+ * 分享到 LINE（正式）：LINE 官方「LINE it!」分享網址。手機會開 LINE App、
+ * 電腦會先登入 LINE 網頁版，再由長輩自己選要傳給哪個家人／群組。不需 channel 憑證。
+ * https://developers.line.biz/en/docs/line-social-plugins/install-guide/using-line-share-buttons/
+ */
+export function lineShareUrl(text: string, url?: string): string {
+  const params = new URLSearchParams({ text });
+  if (url) params.set("url", url);
+  return `https://social-plugins.line.me/lineit/share?${params.toString()}`;
+}
+
+/** 模擬分享到 LINE 家族群組，回傳溫暖問候語（mock 展示模式用） */
 export async function mockLineShare(
   selections: Selections,
   events: QuestionOption[],

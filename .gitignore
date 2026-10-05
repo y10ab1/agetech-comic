@@ -40,3 +40,7 @@ pocketbase/pocketbase
 
 # docker-compose 本機覆寫（各自的埠 / 環境，不共享）
 docker-compose.override.yml
+
+# 本機測試產物
+.playwright-cli/
+.e2e/

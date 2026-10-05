@@ -86,11 +86,22 @@ npm run dev                   # http://localhost:3000
 | `POST` | `/webhook` | LINE Messaging API webhook |
 | `POST` | `/comics/generate` | 由日記文字生成單張四格漫畫（同步）並持久化 |
 | `GET`  | `/me/diaries` | 列出當前使用者日記（集章存摺；可 `?month=YYYY-MM`） |
+| `GET`  | `/api/files/{collection}/{record}/{filename}` | 漫畫圖檔（代理 PocketBase；正式環境 PocketBase 不對外） |
 | `GET`  | `/health` | 健康檢查 |
+
+## 正式部署
+
+GCP：Cloud Run（前端、後端）＋ GCE VM（PocketBase），一支腳本建立與更新：
+
+```bash
+deploy/gcp/deploy.sh all   # 或 pb / backend / frontend
+```
+
+架構、網址、維運與回滾見 [deploy/gcp/README.md](deploy/gcp/README.md)。
 
 ## 開發狀態
 
-- **已完成**：Vertex Nano Banana 2 生圖（單張四格漫畫）、PocketBase 日記持久化 + 圖檔儲存、`/comics/generate` 與 `/me/diaries`、docker-compose。
+- **已完成**：Vertex Nano Banana 2 生圖（單張四格漫畫）、PocketBase 日記持久化 + 圖檔儲存、`/comics/generate` 與 `/me/diaries`、docker-compose、GCP 正式部署（`deploy/gcp/`）。
 - **stub / 待強化**：文字總結、標題、tag 判斷、無障礙口述目前為規則式，待接 LLM。
 - **待做**：LINE channel/LIFF 建置與 token 驗證（P1）、`GET /styles`、`GET /me/rewards`、推播排程。
 

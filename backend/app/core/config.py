@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # 關閉持久化時（如純生圖測試），/comics/generate 不寫 DB
     persist_diaries: bool = True
 
+    # 生成次數上限（每執行個體、每小時；0＝不限）。LINE 驗證上線前防止公開端點被濫用燒 Vertex 費用
+    generate_limit_per_ip_hour: int = 0
+    generate_limit_global_hour: int = 0
+
     # CORS：允許前端存取的來源
     cors_origins: list[str] = ["http://localhost:3000"]
 

@@ -9,7 +9,12 @@ import { ScreenHeading } from "@/components/ScreenHeading";
 import { Icon } from "@/components/Icon";
 import { useFlow } from "@/context/FlowContext";
 import { isComplete } from "@/data/logline";
-import { mockLineShare } from "@/data/comic";
+import {
+  IS_MOCK,
+  buildGreeting,
+  lineShareUrl,
+  mockLineShare,
+} from "@/data/comic";
 import { addStamp } from "@/data/collection";
 import { deriveTags } from "@/data/tags";
 import { consumeGeneration, grantForStampCount } from "@/data/rewards";
@@ -92,6 +97,19 @@ export default function SharePage() {
   if (!complete || !script) return null;
 
   const handleShare = async () => {
+    if (!IS_MOCK) {
+      // 正式：開 LINE 分享選單，由長輩自己選家人／群組送出（我們無從得知是否送出，
+      // 故提示語不宣稱「已送到」）
+      const panel = script.panels[0];
+      const text = buildGreeting(selections, events, narrator.name);
+      const imageUrl =
+        panel && !panel.placeholder && /^https?:\/\//.test(panel.src)
+          ? panel.src
+          : window.location.origin; // 沒有圖時分享網站本身（LINE it! 以 url 為主要參數）
+      window.open(lineShareUrl(text, imageUrl), "_blank", "noopener");
+      setGreeting(text);
+      return;
+    }
     setSharing(true);
     const res = await mockLineShare(selections, events, narrator.name);
     setGreeting(res.greeting);
@@ -163,11 +181,14 @@ export default function SharePage() {
               className="mt-6 rounded-[var(--radius)] border-[3px] border-[color:var(--color-success)] bg-[#eaf7ee] p-5"
             >
               <p className="mb-2 text-[24px] font-bold text-[color:var(--color-success)]">
-                <span aria-hidden="true" className="mr-1 inline-block align-middle"><Icon name="check" size={26} /></span>已幫您送到家族群組！
+                <span aria-hidden="true" className="mr-1 inline-block align-middle"><Icon name="check" size={26} /></span>
+                {IS_MOCK ? "已幫您送到家族群組！" : "LINE 打開了，選好家人就能送出囉！"}
               </p>
               <p className="m-0 text-[20px] leading-[1.5]">「{greeting}」</p>
               <p className="mb-0 mt-2 text-[20px] leading-[1.5]">
-                等他們回話，{narrator.name}再念給您聽。
+                {IS_MOCK
+                  ? `等他們回話，${narrator.name}再念給您聽。`
+                  : "沒有看到 LINE 的話，再按一次上面的按鈕就可以了。"}
               </p>
             </div>
           )}

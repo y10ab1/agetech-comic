@@ -244,3 +244,108 @@ async def test_create_diary_audio_rejected_retries_without_audio(
         with pytest.raises(mod.PocketBaseError):
             await pb.create_diary(**kwargs)
         assert len(posts) == 1
+
+
+def test_file_proxy(client, monkeypatch) -> None:
+    """/api/files 代理：轉發 PocketBase 檔案、長快取；非法路徑段 404。"""
+    import httpx
+
+    from app.api import files as mod
+
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if request.url.path.endswith("/missing.png"):
+            return httpx.Response(404)
+        return httpx.Response(200, content=b"PNG", headers={"content-type": "image/png"})
+
+    real = httpx.AsyncClient
+
+    class _Client(real):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, transport=httpx.MockTransport(handler), **kw)
+
+    monkeypatch.setattr(mod.httpx, "AsyncClient", _Client)
+    r = client.get("/api/files/c1/r1/comic_x.png")
+    assert r.status_code == 200 and r.content == b"PNG"
+    assert r.headers["content-type"] == "image/png"
+    assert "immutable" in r.headers["cache-control"]
+    assert seen[-1].endswith("/api/files/c1/r1/comic_x.png")
+    assert client.get("/api/files/c1/r1/missing.png").status_code == 404
+    assert client.get("/api/files/c1/r1/a%20b.png").status_code == 404
+
+
+def test_compress_comic_webp() -> None:
+    """生圖 PNG 轉 WebP；非圖片 bytes 原樣回傳 PNG。"""
+    import io
+
+    from PIL import Image
+
+    from app.services.comic_generator import compress_comic
+
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 64), "orange").save(buf, "PNG")
+    data, name, mime = compress_comic(buf.getvalue())
+    assert (name, mime) == ("comic.webp", "image/webp") and data[8:12] == b"WEBP"
+    assert compress_comic(b"not-an-image") == (b"not-an-image", "comic.png", "image/png")
+
+
+def test_generate_prod_failures_return_502(client, monkeypatch) -> None:
+    """正式（IMAGE_GEN_FALLBACK=false）：生圖或存檔失敗回 502，不回沒有圖的漫畫。"""
+    from app.services import image_generator, pocketbase_client
+
+    monkeypatch.setenv("IMAGE_GEN_FALLBACK", "false")
+    monkeypatch.setenv("PERSIST_DIARIES", "true")
+    get_settings.cache_clear()
+
+    async def _img(self, summary, style, panel_plan=None):
+        return b"not-a-real-png"
+
+    async def _pb_fail(self, **kwargs):
+        raise pocketbase_client.PocketBaseError("test: pb down")
+
+    monkeypatch.setattr(image_generator.VertexImageGenerator, "generate_comic_image", _img)
+    monkeypatch.setattr(pocketbase_client.PocketBaseClient, "create_diary", _pb_fail)
+    body = {"user_id": "u", "text": "高興 + 菜市場 + 買菜"}
+    r = client.post("/comics/generate", json=body)
+    assert r.status_code == 502
+
+    async def _boom(self, summary, style, panel_plan=None):
+        raise image_generator.ImageGenerationError("test: vertex down")
+
+    monkeypatch.setattr(image_generator.VertexImageGenerator, "generate_comic_image", _boom)
+    assert client.post("/comics/generate", json=body).status_code == 502
+
+
+def test_generate_rate_limit(client, monkeypatch) -> None:
+    """每 IP 上限：超過回 429 {code: RATE_LIMIT}；不同 IP 各自計算；失敗的生成退回額度。"""
+    from app.core import rate_limit
+    from app.services import image_generator
+
+    monkeypatch.setenv("GENERATE_LIMIT_PER_IP_HOUR", "2")
+    get_settings.cache_clear()
+    rate_limit.reset()
+
+    async def _boom(self, summary, style, panel_plan=None):
+        raise image_generator.ImageGenerationError("test")
+
+    monkeypatch.setattr(image_generator.VertexImageGenerator, "generate_comic_image", _boom)
+    body = {"user_id": "u", "text": "x"}
+    a = {"X-Forwarded-For": "1.1.1.1"}
+    # 測試環境 IMAGE_GEN_FALLBACK=true → 成功（無圖），計入額度
+    assert client.post("/comics/generate", json=body, headers=a).status_code == 200
+    assert client.post("/comics/generate", json=body, headers=a).status_code == 200
+    r = client.post("/comics/generate", json=body, headers=a)
+    assert r.status_code == 429 and r.json()["detail"]["code"] == "RATE_LIMIT"
+    # 偽造的前段 XFF 不影響（取最後一個＝Cloud Run 附加的真實來源）
+    spoof = {"X-Forwarded-For": "9.9.9.9, 1.1.1.1"}
+    assert client.post("/comics/generate", json=body, headers=spoof).status_code == 429
+
+    # 失敗（502）不消耗額度
+    monkeypatch.setenv("IMAGE_GEN_FALLBACK", "false")
+    get_settings.cache_clear()
+    b = {"X-Forwarded-For": "2.2.2.2"}
+    for _ in range(4):
+        assert client.post("/comics/generate", json=body, headers=b).status_code == 502
+    rate_limit.reset()

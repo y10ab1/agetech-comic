@@ -15,6 +15,7 @@ import { useSpeech, SPEECH_RATES, type SpeechRate } from "@/hooks/useSpeech";
 import { useIdleHint } from "@/hooks/useIdleHint";
 import { isComplete } from "@/data/logline";
 import { createComic } from "@/data/comic";
+import { ApiError } from "@/lib/api";
 import { getNarrator } from "@/data/narrator";
 import { QUESTIONS } from "@/data/questions";
 import type { DisplayScript } from "@/data/types";
@@ -52,11 +53,39 @@ export default function TheaterPage() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [segIndex, setSegIndex] = useState(0);
   const [failed, setFailed] = useState(false);
+  // 429：生成次數達上限（等一下再來），與一般失敗分開提示
+  const [rateLimited, setRateLimited] = useState(false);
   const scriptRef = useRef<DisplayScript | null>(null);
 
   const complete = isComplete(selections, events);
   // 閒置引導：只在「等待開始/聽完」時偵測，朗讀中不打擾（hooks 需無條件呼叫）
   const idle = useIdleHint(10000, phase === "ready" || phase === "done");
+
+  const aliveRef = useRef(true);
+  // 生成一次（初次進頁與「再試一次」共用）
+  const generate = () => {
+    // 記下發起生成時的輸入識別：腳本只對這組輸入有效
+    const key = flowKey;
+    createComic({ userId, salutation, selections, events, narratorId, styleId })
+      .then((s) => {
+        if (!aliveRef.current) return;
+        scriptRef.current = s;
+        setScript(s);
+        // 同步進 FlowContext：share 落章沿用同一份（真 API 結果才會被保存）
+        setFlowScript(s, key);
+        setPhase("ready");
+      })
+      .catch((err: unknown) => {
+        if (!aliveRef.current) return;
+        setRateLimited(err instanceof ApiError && err.status === 429);
+        setFailed(true);
+      });
+  };
+  const handleRetry = () => {
+    setFailed(false);
+    setPhase("loading");
+    generate();
+  };
 
   useEffect(() => {
     if (!complete) return;
@@ -69,23 +98,10 @@ export default function TheaterPage() {
       return;
     }
     // 初始 state 已是 loading/failed=false，故 effect 內只做非同步生成
-    let alive = true;
-    // 記下發起生成時的輸入識別：腳本只對這組輸入有效
-    const key = flowKey;
-    createComic({ userId, salutation, selections, events, narratorId, styleId })
-      .then((s) => {
-        if (!alive) return;
-        scriptRef.current = s;
-        setScript(s);
-        // 同步進 FlowContext：share 落章沿用同一份（真 API 結果才會被保存）
-        setFlowScript(s, key);
-        setPhase("ready");
-      })
-      .catch(() => {
-        if (alive) setFailed(true);
-      });
+    aliveRef.current = true;
+    generate();
     return () => {
-      alive = false;
+      aliveRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [complete]);
@@ -136,7 +152,9 @@ export default function TheaterPage() {
   const seg = script?.segments[segIndex];
   const subtitleText =
     phase === "loading"
-      ? `${narrator.name}正在把您的故事畫成漫畫，請稍等一下下…`
+      ? failed
+        ? `${narrator.name}剛剛沒畫好，請按「再試一次」。`
+        : `${narrator.name}正在把您的故事畫成漫畫，大約要半分鐘，請稍等一下下…`
       : isPlaybackActive
         ? seg?.text ?? ""
         : `故事和漫畫都準備好了，想聽${narrator.name}念給您聽嗎？`;
@@ -146,11 +164,27 @@ export default function TheaterPage() {
       <ScreenHeading>{narrator.name}說故事時間</ScreenHeading>
 
       {failed && (
-        <ErrorNotice message="故事畫到一半好像卡住了，請點下面的黃色按鈕再試一次喔！" />
+        <div className="mb-6 flex flex-col gap-4">
+          <ErrorNotice
+            message={
+              rateLimited
+                ? "今天畫了好多張漫畫，先休息一下，過一陣子再按下面的按鈕喔！"
+                : "故事畫到一半好像卡住了，請點下面的按鈕再試一次喔！"
+            }
+          />
+          <AccessibleButton
+            size="xl"
+            icon={<Icon name="replay" />}
+            block
+            onClick={handleRetry}
+          >
+            再試一次
+          </AccessibleButton>
+        </div>
       )}
 
       <p className="sr-only" aria-live="polite">
-        {phase === "loading" ? "正在生成漫畫，請稍候" : ""}
+        {phase === "loading" && !failed ? "正在生成漫畫，請稍候" : ""}
       </p>
 
       <div className="grid grid-cols-1 items-start gap-7 md:grid-cols-2">

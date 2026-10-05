@@ -1,0 +1,15 @@
+node_modules
+.next
+.env*.local
+frontend/node_modules
+frontend/.next
+frontend/.env.local
+frontend/tsconfig.tsbuildinfo
+backend/.venv
+backend/.env
+**/__pycache__
+.e2e
+.playwright-cli
+**/.playwright-cli
+pocketbase/pb_data
+.git
