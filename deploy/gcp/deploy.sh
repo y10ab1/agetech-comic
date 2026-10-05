@@ -27,7 +27,7 @@ PB_PASSWORD_SECRET="agetech-pb-admin-password"
 PB_ADMIN_EMAIL="admin@agetech.app"
 VERTEX_IMAGE_MODEL="${VERTEX_IMAGE_MODEL:-gemini-3.1-flash-lite-image}"   # Nano Banana 2 Lite
 VERTEX_IMAGE_SIZE="${VERTEX_IMAGE_SIZE:-1K}"   # Lite 最大 1K；換 gemini-3-pro-image 可用 2K
-VERTEX_TEXT_MODEL="${VERTEX_TEXT_MODEL:-gemini-2.5-flash,gemini-3-flash-preview}"
+VERTEX_TEXT_MODEL="${VERTEX_TEXT_MODEL:-gemini-3.8-flash,gemini-3.5-flash-lite}"
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 TAG="$(git -C "$ROOT" rev-parse --short HEAD)$(git -C "$ROOT" diff --quiet HEAD -- . ':!deploy' || echo -dirty)"

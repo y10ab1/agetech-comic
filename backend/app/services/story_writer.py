@@ -332,7 +332,7 @@ class StoryWriter:
         return plan
 
     async def write(self, text: str, mood: str | None = None) -> StoryPlan:
-        """依 VERTEX_TEXT_MODEL 順序嘗試（逗號分隔；快的在前、品質好的備援），
+        """依 VERTEX_TEXT_MODEL 順序嘗試（逗號分隔；品質好的在前、便宜快速的備援），
         全部失敗／逾時退回規則式。"""
         fallback = rules_plan(text)
         if not self._settings.story_llm_enabled or not text.strip():
