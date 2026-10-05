@@ -35,9 +35,9 @@ class Settings(BaseSettings):
     # 換回 Nano Banana Pro（gemini-3-pro-image）時可設 VERTEX_IMAGE_SIZE=2K
     vertex_image_model: str = "gemini-3.1-flash-lite-image"
     vertex_image_size: Literal["1K", "2K", "4K"] = "1K"  # 拼錯在啟動時就報錯
-    # 故事文字（標題／四格圖說／畫面描述）。逗號分隔＝依序嘗試：快的 GA 模型在前，
+    # 故事文字（標題／四格圖說／畫面描述）。逗號分隔＝依序嘗試（3.8 Flash 品質最好；3.5 Flash-Lite 便宜快速當備援），
     # 不合格（含重寫一次後）或呼叫失敗換下一個；全部失敗或逾時退回規則式
-    vertex_text_model: str = "gemini-2.5-flash,gemini-3-flash-preview"
+    vertex_text_model: str = "gemini-3.8-flash,gemini-3.5-flash-lite"
     story_llm_enabled: bool = True
     story_llm_timeout_s: float = 45.0  # 含重寫與備援模型
     # 生圖失敗時是否回傳佔位結果（不中斷流程），供本機無 GCP 權限時開發

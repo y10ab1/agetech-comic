@@ -10,7 +10,7 @@
    └──HTTPS──▶ Cloud Run  agetech-backend    (backend/Dockerfile，FastAPI)
                    │  Direct VPC egress（private-ranges-only）
                    ├──▶ GCE VM  agetech-pb  10.140.0.x:8090   PocketBase（日記 DB＋圖檔）
-                   └──▶ Vertex AI  gemini-2.5-flash（備援 3-flash-preview）寫故事 → gemini-3.1-flash-lite-image（Nano Banana 2 Lite）生圖
+                   └──▶ Vertex AI  gemini-3.8-flash（備援 3.5-flash-lite）寫故事 → gemini-3.1-flash-lite-image（Nano Banana 2 Lite）生圖
 ```
 
 | 元件 | GCP 資源 | repo 來源 |
@@ -27,6 +27,16 @@
 - CORS 只允許前端網址。
 - 生成上限（LINE 驗證上線前的費用防護）：每 IP 每小時 10 次、每執行個體每小時 60 次，超過回 429；後端最多 3 個執行個體（每個同時 10 個請求），即每小時最多約 180 次生圖。來源 IP 取 `X-Forwarded-For` 最後一個值（直連 `run.app` 時為真實來源）；**若之後前面加 HTTPS Load Balancer／自訂網域，要改 `backend/app/core/rate_limit.py` 的 `_client_ip`**（最後一個會變成 LB）。
 - 生圖原檔（PNG 約 7MB）存成 WebP（約 0.8MB）。
+
+## 模型與費用（Vertex 定價，global，USD）
+
+| 用途 | 模型 | 單價 | 每則約 |
+|---|---|---|---|
+| 寫故事 | `gemini-3.8-flash` | $0.75／$3.75 每百萬 token（輸入／輸出；優惠價至 2026-12-31，之後 $1.50／$7.50） | ≈ $0.0015（2027 起 ≈ $0.003） |
+| 寫故事（備援） | `gemini-3.5-flash-lite` | $0.30／$2.50 | ≈ $0.0009 |
+| 生圖 | `gemini-3.1-flash-lite-image`（Nano Banana 2 Lite） | 圖片輸出 $30 每百萬 token | ≈ $0.034 |
+
+實測用量（2026-10-05）：故事約 850 輸入＋230 輸出 token；1K 圖 1,120 輸出 token。**每則漫畫合計約 $0.036**（觸發重寫時故事費用加倍，仍不到 $0.04）。生圖佔九成以上。最新價格見 https://cloud.google.com/vertex-ai/generative-ai/pricing 。
 
 ## 網址
 
