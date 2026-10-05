@@ -59,6 +59,8 @@ def test_generate_comic_contract_fields(client, monkeypatch) -> None:
     assert "title" in data
     assert "tags" in data
     assert "cover_url" in data
+    # issue #9：音檔欄位預留，尚無 TTS 時一律為 null
+    assert data["narration_audio_url"] is None
     # fallback 情況下沒有圖，panels 為空
     assert data["panels"] == []
 
@@ -67,3 +69,22 @@ def test_diaries_requires_user(client) -> None:
     """未帶身分時 /me/diaries 回 401。"""
     response = client.get("/me/diaries")
     assert response.status_code == 401
+
+
+def test_to_record_narration_fields() -> None:
+    """issue #9：_to_record 帶出 narration／narration_audio_url；舊紀錄缺欄位時為空值。"""
+    from app.core.config import get_settings
+    from app.services.pocketbase_client import PocketBaseClient
+
+    pb = PocketBaseClient(get_settings())
+    base = {"id": "r1", "collectionId": "c1", "user_id": "u", "created_at": "2026-10-05"}
+
+    legacy = pb._to_record(base)
+    assert legacy.narration == ""
+    assert legacy.narration_audio_url is None
+
+    with_audio = pb._to_record(
+        {**base, "narration": "今天去公園。", "narration_audio": "narration_abc.mp3"}
+    )
+    assert with_audio.narration == "今天去公園。"
+    assert with_audio.narration_audio_url.endswith("/api/files/c1/r1/narration_abc.mp3")

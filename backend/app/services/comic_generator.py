@@ -60,9 +60,11 @@ class ComicGenerator:
         cover_url = ""
         image_url = ""
         diary_id: str | None = None
+        # TODO(issue #9 後續)：後端 TTS 生成旁白音檔後以 audio_bytes 一併存入
+        narration_audio_url: str | None = None
         if self._pb is not None:
             try:
-                diary_id, cover_url = await self._pb.create_diary(
+                diary_id, cover_url, narration_audio_url = await self._pb.create_diary(
                     user_id=entry.user_id,
                     title=title,
                     tags=[],  # TODO: 由 LLM/前端帶入限定 taxonomy tag
@@ -70,6 +72,7 @@ class ComicGenerator:
                     style=entry.style,
                     logline=entry.text,
                     image_bytes=image_bytes,
+                    narration=narration,
                 )
                 image_url = cover_url
             except PocketBaseError as exc:
@@ -91,4 +94,5 @@ class ComicGenerator:
             tags=[],
             cover_url=cover_url,
             diary_id=diary_id,
+            narration_audio_url=narration_audio_url,
         )

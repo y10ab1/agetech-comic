@@ -6,7 +6,7 @@
  *
  * 型別與後端契約對齊（見 backend/app/models/comic.py 與
  * docs/api-contract-additions.md）：DiaryEntry 支援 style/mood；
- * ComicResult 回傳 title/tags/cover_url/diary_id。
+ * ComicResult 回傳 title/tags/cover_url/diary_id/narration_audio_url。
  */
 
 const API_BASE_URL =
@@ -46,6 +46,32 @@ export interface ComicResult {
   cover_url: string;
   /** 已持久化的日記紀錄 id（未持久化時為 null） */
   diary_id: string | null;
+  /** 後端 TTS 旁白音檔網址；null＝無音檔，前端退回瀏覽器 speechSynthesis */
+  narration_audio_url: string | null;
+}
+
+/** GET /me/diaries 的日記項目（對齊後端 DiaryRecord） */
+export interface DiaryRecord {
+  id: string;
+  user_id: string;
+  created_at: string;
+  title: string;
+  tags: string[];
+  mood: Mood | null;
+  style: string | null;
+  cover_url: string;
+  logline: string;
+  /** 生成當下的完整旁白文字（舊資料為空字串） */
+  narration: string;
+  /** 旁白音檔網址；null＝無音檔，前端退回瀏覽器 TTS */
+  narration_audio_url: string | null;
+}
+
+/** GET /me/diaries 回應 */
+export interface DiaryListResponse {
+  diaries: DiaryRecord[];
+  total_count: number;
+  recorded_today: boolean;
 }
 
 /**
