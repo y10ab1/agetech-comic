@@ -42,6 +42,7 @@ export default function TheaterPage() {
     narratorId,
     styleId,
     setScript: setFlowScript,
+    flowKey,
   } = useFlow();
   const narrator = getNarrator(narratorId);
   const speech = useSpeech(0.8);
@@ -60,13 +61,15 @@ export default function TheaterPage() {
     if (!complete) return;
     // 初始 state 已是 loading/failed=false，故 effect 內只做非同步生成
     let alive = true;
+    // 記下發起生成時的輸入識別：腳本只對這組輸入有效
+    const key = flowKey;
     createComic({ userId, salutation, selections, events, narratorId, styleId })
       .then((s) => {
         if (!alive) return;
         scriptRef.current = s;
         setScript(s);
         // 同步進 FlowContext：share 落章沿用同一份（真 API 結果才會被保存）
-        setFlowScript(s);
+        setFlowScript(s, key);
         setPhase("ready");
       })
       .catch(() => {
@@ -273,16 +276,18 @@ export default function TheaterPage() {
 
       <div className="mt-10 flex flex-wrap justify-between gap-[var(--touch-gap)]">
         <BackButton to="/events" />
+        {/* 本次漫畫生成完成前不能進落章（否則會存到別份或 mock 腳本） */}
         <AccessibleButton
           size="lg"
           variant="primary"
           icon={<Icon name="arrow-right" />}
+          disabled={!script}
           onClick={() => {
             speech.cancel();
             router.push("/share");
           }}
         >
-          我喜歡，下一步分享
+          {script ? "我喜歡，下一步分享" : "漫畫準備中…"}
         </AccessibleButton>
       </div>
     </main>

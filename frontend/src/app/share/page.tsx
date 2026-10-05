@@ -9,7 +9,7 @@ import { ScreenHeading } from "@/components/ScreenHeading";
 import { Icon } from "@/components/Icon";
 import { useFlow } from "@/context/FlowContext";
 import { isComplete } from "@/data/logline";
-import { generateMockScript, mockLineShare } from "@/data/comic";
+import { mockLineShare } from "@/data/comic";
 import { addStamp } from "@/data/collection";
 import { deriveTags } from "@/data/tags";
 import { consumeGeneration, grantForStampCount } from "@/data/rewards";
@@ -24,8 +24,6 @@ import type { StampRecord } from "@/data/types";
 export default function SharePage() {
   const router = useRouter();
   const {
-    userId,
-    salutation,
     selections,
     events,
     narratorId,
@@ -39,12 +37,10 @@ export default function SharePage() {
   const savedRef = useRef(false);
 
   const complete = isComplete(selections, events);
-  // 沿用劇場生成的同一份腳本（真 API 的 panels／圖說才會落章保存）；
-  // 直接進本頁（無劇場腳本）時退回 mock，維持可展示
-  const script = complete
-    ? (flowScript ??
-      generateMockScript({ userId, salutation, selections, events, narratorId }))
-    : null;
+  // 只沿用劇場為「目前這組選項」生成的腳本（FlowContext 以 flowKey 綁定，
+  // 選項變更即失效）。沒有當次腳本（直接進本頁／選項改過）就回劇場重新生成，
+  // 不以 mock 或舊故事落章
+  const script = complete ? flowScript : null;
   const narrator = getNarrator(narratorId);
 
   useEffect(() => {
@@ -52,7 +48,11 @@ export default function SharePage() {
       router.replace(`/q/${QUESTIONS[0].slug}`);
       return;
     }
-    if (!script || savedRef.current) return;
+    if (!script) {
+      router.replace("/theater");
+      return;
+    }
+    if (savedRef.current) return;
     savedRef.current = true;
     const record: StampRecord = {
       id: "S" + Date.now().toString(36),
@@ -77,7 +77,7 @@ export default function SharePage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (msgs.length) setRewards(msgs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [complete]);
+  }, [complete, script]);
 
   if (!complete || !script) return null;
 

@@ -23,9 +23,14 @@ interface FlowState {
   /**
    * 本次生成的劇場腳本（theater 寫入）。share 落章沿用同一份，
    * 真 API 的 panels／segments／quadrantCaptions 才會被保存與重播。
+   * 腳本綁定生成當下的輸入（flowKey）：選項一變即視為過期、讀到 null，
+   * 避免把舊故事配上新選項落章。
    */
   script: DisplayScript | null;
-  setScript: (s: DisplayScript | null) => void;
+  /** 寫入腳本；key 為呼叫 createComic 當下的 flowKey（非同步完成時輸入可能已變） */
+  setScript: (s: DisplayScript | null, key: string) => void;
+  /** 目前輸入的識別（userId/稱呼/說書人/畫風/選項/事件） */
+  flowKey: string;
   login: (userId: string) => void;
   logout: () => void;
   setSalutation: (s: string) => void;
@@ -49,7 +54,26 @@ export function FlowProvider({ children }: { children: ReactNode }) {
   const [styleId, setStyleId] = useState("");
   const [selections, setSelections] = useState<Selections>({});
   const [events, setEvents] = useState<QuestionOption[]>([]);
-  const [script, setScript] = useState<DisplayScript | null>(null);
+  const [scriptEntry, setScriptEntry] = useState<{
+    key: string;
+    script: DisplayScript;
+  } | null>(null);
+
+  const flowKey = useMemo(
+    () =>
+      JSON.stringify([
+        userId,
+        salutation,
+        narratorId,
+        styleId,
+        Object.entries(selections)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([q, o]) => [q, o.value]),
+        events.map((e) => e.value),
+      ]),
+    [userId, salutation, narratorId, styleId, selections, events],
+  );
+  const script = scriptEntry?.key === flowKey ? scriptEntry.script : null;
 
   // 掛載後從 profile 水合稱呼（已註冊用戶直接進主流程仍有稱呼）
   useEffect(() => {
@@ -68,7 +92,8 @@ export function FlowProvider({ children }: { children: ReactNode }) {
       selections,
       events,
       script,
-      setScript,
+      setScript: (s, key) => setScriptEntry(s ? { key, script: s } : null),
+      flowKey,
       login: (id) => {
         if (typeof window !== "undefined") localStorage.setItem(USER_KEY, id);
         setUserId(id);
@@ -96,10 +121,10 @@ export function FlowProvider({ children }: { children: ReactNode }) {
         setSelections({});
         setEvents([]);
         setStyleId("");
-        setScript(null);
+        setScriptEntry(null);
       },
     }),
-    [userId, salutation, narratorId, styleId, selections, events, script],
+    [userId, salutation, narratorId, styleId, selections, events, script, flowKey],
   );
 
   return <FlowCtx.Provider value={value}>{children}</FlowCtx.Provider>;
