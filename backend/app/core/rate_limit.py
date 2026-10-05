@@ -6,6 +6,7 @@
 
 import time
 from collections import deque
+from collections.abc import Iterator
 from threading import Lock
 
 from fastapi import HTTPException, Request
@@ -30,11 +31,16 @@ def _trim(q: deque[float], now: float) -> None:
         q.popleft()
 
 
-def check_generation_quota(request: Request) -> None:
-    """超過上限時拋 429（結構化錯誤，見 api-contract §8）。"""
+def check_generation_quota(request: Request) -> Iterator[None]:
+    """超過上限時拋 429（結構化錯誤，見 api-contract §8）。
+
+    FastAPI yield dependency：生成失敗（例外）時退回這次額度，
+    避免 Vertex 暫時故障時使用者連按「再試一次」把額度耗盡。
+    """
     s = get_settings()
     per_ip, total = s.generate_limit_per_ip_hour, s.generate_limit_global_hour
     if per_ip <= 0 and total <= 0:
+        yield
         return
     now = time.monotonic()
     ip = _client_ip(request)
@@ -49,6 +55,16 @@ def check_generation_quota(request: Request) -> None:
         if len(_per_ip) > 10_000:  # 防記憶體無限成長
             for k in [k for k, v in _per_ip.items() if not v]:
                 del _per_ip[k]
+    try:
+        yield
+    except Exception:
+        with _lock:
+            for dq in (q, _global):
+                try:
+                    dq.remove(now)
+                except ValueError:
+                    pass
+        raise
 
 
 def reset() -> None:
