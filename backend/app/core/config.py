@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     vertex_text_model: str = "gemini-3.8-flash,gemini-3.5-flash-lite"
     story_llm_enabled: bool = True
     story_llm_timeout_s: float = 45.0  # 含重寫與備援模型
+    # 旁白語音（Gemini 3.8 TTS，只在 global）。逗號分隔＝依序嘗試；
+    # Flash-Lite 實測台灣口音較自然且較便宜，Flash 當備援。全部失敗＝無音檔（前端退回瀏覽器 TTS）
+    tts_enabled: bool = True
+    vertex_tts_model: str = "gemini-3.8-flash-lite-tts,gemini-3.8-flash-tts"
+    tts_voice: str = "Sulafat"  # 預建聲音「Warm」
+    tts_timeout_s: float = 40.0
     # 生圖失敗時是否回傳佔位結果（不中斷流程），供本機無 GCP 權限時開發
     image_gen_fallback: bool = True
 
@@ -56,6 +62,8 @@ class Settings(BaseSettings):
     # 生成次數上限（每執行個體、每小時；0＝不限）。LINE 驗證上線前防止公開端點被濫用燒 Vertex 費用
     generate_limit_per_ip_hour: int = 0
     generate_limit_global_hour: int = 0
+    # LINE Bot：每位 LINE 使用者每小時生成上限（0＝不限）；全域額度與網頁共用
+    line_generate_limit_per_user_hour: int = 0
 
     # CORS：允許前端存取的來源
     cors_origins: list[str] = ["http://localhost:3000"]

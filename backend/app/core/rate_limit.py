@@ -31,6 +31,38 @@ def _trim(q: deque[float], now: float) -> None:
         q.popleft()
 
 
+def consume(key: str, per_key: int, total: int) -> float | None:
+    """嘗試取一次額度；成功回傳時間戳（失敗時拿去 release 退回），超過上限回 None。
+
+    key 為來源識別（網頁＝IP、LINE＝"line:{userId}"），全域額度兩者共用。
+    """
+    now = time.monotonic()
+    with _lock:
+        _trim(_global, now)
+        q = _per_ip.setdefault(key, deque())
+        _trim(q, now)
+        if (per_key > 0 and len(q) >= per_key) or (total > 0 and len(_global) >= total):
+            return None
+        q.append(now)
+        _global.append(now)
+        if len(_per_ip) > 10_000:  # 防記憶體無限成長
+            for k in [k for k, v in _per_ip.items() if not v]:
+                del _per_ip[k]
+    return now
+
+
+def release(key: str, ts: float) -> None:
+    """退回 consume 取得的額度（生成失敗時用）。"""
+    with _lock:
+        for dq in (_per_ip.get(key), _global):
+            if dq is None:
+                continue
+            try:
+                dq.remove(ts)
+            except ValueError:
+                pass
+
+
 def check_generation_quota(request: Request) -> Iterator[None]:
     """超過上限時拋 429（結構化錯誤，見 api-contract §8）。
 
@@ -42,28 +74,14 @@ def check_generation_quota(request: Request) -> Iterator[None]:
     if per_ip <= 0 and total <= 0:
         yield
         return
-    now = time.monotonic()
     ip = _client_ip(request)
-    with _lock:
-        _trim(_global, now)
-        q = _per_ip.setdefault(ip, deque())
-        _trim(q, now)
-        if (per_ip > 0 and len(q) >= per_ip) or (total > 0 and len(_global) >= total):
-            raise HTTPException(status_code=429, detail={"code": "RATE_LIMIT"})
-        q.append(now)
-        _global.append(now)
-        if len(_per_ip) > 10_000:  # 防記憶體無限成長
-            for k in [k for k, v in _per_ip.items() if not v]:
-                del _per_ip[k]
+    ts = consume(ip, per_ip, total)
+    if ts is None:
+        raise HTTPException(status_code=429, detail={"code": "RATE_LIMIT"})
     try:
         yield
     except Exception:
-        with _lock:
-            for dq in (q, _global):
-                try:
-                    dq.remove(now)
-                except ValueError:
-                    pass
+        release(ip, ts)
         raise
 
 

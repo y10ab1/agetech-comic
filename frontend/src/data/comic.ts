@@ -15,6 +15,7 @@ import type {
   DisplayPanel,
   DisplayScript,
   Expression,
+  NarrationAudio,
   QuadrantCaptions,
   QuestionOption,
   ScriptSegment,
@@ -84,7 +85,7 @@ function splitNarration(narration: string): string[] {
     .filter(Boolean);
 }
 
-/** 故事標題樣板（正式由後端 AI 下標：TODO(後端契約) ComicResult.title） */
+/** 故事標題樣板（mock 模式，及後端未回 ComicResult.title 時的備援） */
 export function buildTitle(
   selections: Selections,
   events: QuestionOption[],
@@ -160,6 +161,26 @@ export function adaptComicResult(
     panels,
     quadrantCaptions,
     segments,
+    narrationAudio: toNarrationAudio(result, quadrantCaptions !== undefined),
+    greeting: result.greeting?.trim() || undefined,
+  };
+}
+
+/** 後端旁白音檔 → 顯示模型；欄位不齊（舊後端／TTS 失敗）時回 undefined 改用瀏覽器朗讀 */
+function toNarrationAudio(
+  result: ComicResult,
+  hasQuadrants: boolean,
+): NarrationAudio | undefined {
+  const url = result.narration_audio_url;
+  const durationMs = result.narration_audio_duration_ms ?? 0;
+  const marks = result.narration_audio_marks_ms ?? [];
+  if (!url || durationMs <= 0) return undefined;
+  // 音檔分段需與 segments 結構一致：四格時 4 段，否則整段 1 段
+  const expected = hasQuadrants ? 4 : 1;
+  return {
+    url,
+    durationMs,
+    marksMs: marks.length === expected ? marks : [0],
   };
 }
 
@@ -415,7 +436,7 @@ const EVENT_HOOK_LEGACY: Record<string, string> = {
 /** 沒有對應鉤子時的通用收尾（不施壓、貼圖即可回） */
 const FALLBACK_HOOK = "看完跟我說好不好看？";
 
-/** 組出以長輩第一人稱發出的問候語（TODO(後端契約)：正式版由後端 AI 生成 ComicResult.greeting） */
+/** 組出以長輩第一人稱發出的問候語（mock 模式，及後端未回 ComicResult.greeting 時的備援） */
 export function buildGreeting(
   selections: Selections,
   events: QuestionOption[],

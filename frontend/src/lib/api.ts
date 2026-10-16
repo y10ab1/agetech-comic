@@ -50,6 +50,12 @@ export interface ComicResult {
   diary_id: string | null;
   /** 後端 TTS 旁白音檔網址；null＝無音檔，前端退回瀏覽器 speechSynthesis */
   narration_audio_url: string | null;
+  /** 旁白音檔長度（毫秒）；無音檔時為 null */
+  narration_audio_duration_ms?: number | null;
+  /** 旁白音檔各段起始毫秒：有四格時對應 quadrant_captions（4 筆），否則 1 筆 */
+  narration_audio_marks_ms?: number[];
+  /** AI 寫的長輩第一人稱問候語（分享給家人用）；空字串＝前端以樣板組 */
+  greeting?: string;
 }
 
 /** GET /me/diaries 的日記項目（對齊後端 DiaryRecord） */

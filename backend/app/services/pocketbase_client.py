@@ -74,8 +74,8 @@ class PocketBaseClient:
     ) -> tuple[str, str, str | None]:
         """建立一筆日記紀錄，回傳 (record_id, cover_url, narration_audio_url)。
 
-        audio_bytes 為後端 TTS 旁白音檔（issue #9）；目前尚未實作 TTS，
-        呼叫端不帶時音檔欄位留空、narration_audio_url 回 None。
+        audio_bytes 為後端 TTS 旁白音檔（issue #9，見 services/tts.py）；
+        不帶（TTS 失敗）時音檔欄位留空、narration_audio_url 回 None。
         """
         data = {
             "user_id": user_id,

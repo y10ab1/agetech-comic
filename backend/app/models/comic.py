@@ -60,9 +60,19 @@ class ComicResult(BaseModel):
     cover_url: str = Field("", description="封面圖網址（單張四格圖時＝該圖）")
     # 持久化後回傳的日記紀錄 id（未持久化時為 None）
     diary_id: str | None = Field(None, description="PocketBase 日記紀錄 id")
-    # 後端 TTS 旁白音檔（issue #9；尚未生成時為 None，前端退回瀏覽器 TTS）
+    # 後端 TTS 旁白音檔（issue #9；TTS 失敗或未持久化時為 None，前端退回瀏覽器 TTS）
     narration_audio_url: str | None = Field(
         None, description="旁白音檔網址（mp3/m4a）；None＝無音檔，前端退回瀏覽器 TTS"
+    )
+    narration_audio_duration_ms: int | None = Field(
+        None, description="旁白音檔長度（毫秒）；無音檔時為 None"
+    )
+    narration_audio_marks_ms: list[int] = Field(
+        default_factory=list,
+        description="旁白音檔中各段起始毫秒：有四格時對應 quadrant_captions（4 筆），否則 1 筆",
+    )
+    greeting: str = Field(
+        "", description="長輩第一人稱傳給家人的 LINE 問候語（AI 生成）；空＝前端以樣板組"
     )
 
 

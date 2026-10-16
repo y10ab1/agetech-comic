@@ -2,7 +2,8 @@
 
 流程：日記文字 → 故事企劃（Vertex 文字模型：標題／總結／四格圖說＋畫面；
      失敗退回規則式，見 story_writer.py）→ 依同一份四格企劃生成單張四格漫畫圖
-     （Vertex 生圖）→（可選）存 PocketBase → 回傳 ComicResult。
+     （Vertex 生圖），同時把口述念成旁白 MP3（Gemini TTS，見 tts.py）
+     →（可選）存 PocketBase → 回傳 ComicResult。
 """
 
 import io
@@ -16,6 +17,7 @@ from app.core.config import Settings
 from app.models.comic import ComicPanel, ComicResult, DiaryEntry
 from app.services.image_generator import ImageGenerationError, VertexImageGenerator
 from app.services.pocketbase_client import PocketBaseClient, PocketBaseError
+from app.services.tts import NarrationAudio, NarrationTTS
 from app.services.story_writer import (  # noqa: F401 — MOOD/PLACE_LABELS 供外部引用
     MOOD_LABELS,
     PLACE_LABELS,
@@ -51,6 +53,7 @@ class ComicGenerator:
         self._image_gen = VertexImageGenerator(settings)
         self._pb = PocketBaseClient(settings) if settings.persist_diaries else None
         self._writer = StoryWriter(settings)
+        self._tts = NarrationTTS(settings)
 
     # ---- 規則式（story_writer 的 fallback；保留方法供測試與外部呼叫） ----
 
@@ -77,7 +80,7 @@ class ComicGenerator:
     async def build_narration(
         self, summary: str, quadrant_captions: list[str] | None = None
     ) -> str:
-        """整張四格圖的無障礙口述影像。TODO: 交給 LLM 生成。
+        """口述影像的規則式備援（文字模型沒寫 narration 時）。
 
         有象限圖說時由其組成逐格口述，與劇場高亮同步的內容一致。
         """
@@ -90,29 +93,46 @@ class ComicGenerator:
         return f"這是一張四格漫畫，描繪您今天的故事：{summary}"
 
     async def create_comic(self, entry: DiaryEntry) -> ComicResult:
-        """完整流程：日記 → 四格漫畫（→ 持久化）。"""
+        """完整流程：日記 → 四格漫畫＋旁白語音（→ 持久化）。"""
         plan = await self._writer.write(entry.text, entry.mood)
         summary, title, quadrant_captions = plan.summary, plan.title, plan.captions
-        narration = await self.build_narration(summary, quadrant_captions)
+        # 口述影像：優先用文字模型寫的（逐格描述畫面）；規則式／缺漏時由圖說組成
+        narration = plan.narration or await self.build_narration(summary, quadrant_captions)
+        # 旁白語音念劇場逐句顯示的文字（與前端 adaptComicResult 同規則），才能逐格高亮
+        spoken = quadrant_captions if len(quadrant_captions) == 4 else [narration or summary]
         logger.info("故事企劃來源：%s（%d 格）", plan.source, len(quadrant_captions))
 
-        # 1) 生成單張四格漫畫圖
+        # 1) 生成單張四格漫畫圖，同時念旁白（旁白不依賴圖，並行省時間；語音失敗＝無音檔）
         image_bytes: bytes | None = None
-        try:
-            # 生圖與圖說共用同一份四格企劃（有畫面描述用畫面描述），對得上象限高亮
-            image_bytes = await self._image_gen.generate_comic_image(
-                summary, entry.style, panel_plan=(plan.scenes or quadrant_captions) or None
-            )
-        except ImageGenerationError as exc:
-            if not self._settings.image_gen_fallback:
-                raise
-            logger.warning("生圖失敗，改用佔位結果：%s", exc)
+        audio: NarrationAudio | None = None
+        image_error: ImageGenerationError | None = None
 
-        # 2) 持久化（存圖 + 建日記紀錄）
+        async def _image() -> None:
+            nonlocal image_bytes, image_error
+            try:
+                # 生圖與圖說共用同一份四格企劃（有畫面描述用畫面描述），對得上象限高亮
+                image_bytes = await self._image_gen.generate_comic_image(
+                    summary, entry.style, panel_plan=(plan.scenes or quadrant_captions) or None
+                )
+            except ImageGenerationError as exc:
+                image_error = exc
+
+        async def _speech() -> None:
+            nonlocal audio
+            audio = await self._tts.synthesize(spoken)
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(_image)
+            tg.start_soon(_speech)
+        if image_error is not None:
+            if not self._settings.image_gen_fallback:
+                raise image_error
+            logger.warning("生圖失敗，改用佔位結果：%s", image_error)
+
+        # 2) 持久化（存圖＋音檔＋建日記紀錄）
         cover_url = ""
         image_url = ""
         diary_id: str | None = None
-        # TODO(issue #9 後續)：後端 TTS 生成旁白音檔後以 audio_bytes 一併存入
         narration_audio_url: str | None = None
         if self._pb is not None:
             # 轉檔約 0.4 秒 CPU，丟 threadpool 免卡住其他請求
@@ -125,7 +145,7 @@ class ComicGenerator:
                 diary_id, cover_url, narration_audio_url = await self._pb.create_diary(
                     user_id=entry.user_id,
                     title=title,
-                    tags=[],  # TODO: 由 LLM/前端帶入限定 taxonomy tag
+                    tags=plan.tags,
                     mood=entry.mood,
                     style=entry.style,
                     logline=entry.text,
@@ -133,6 +153,9 @@ class ComicGenerator:
                     image_filename=stored_name,
                     image_mime=stored_mime,
                     narration=narration,
+                    audio_bytes=audio.data if audio else None,
+                    audio_filename=audio.filename if audio else "narration.mp3",
+                    audio_mime=audio.mime if audio else "audio/mpeg",
                 )
                 image_url = cover_url
             except PocketBaseError as exc:
@@ -161,8 +184,11 @@ class ComicGenerator:
             narration=narration,
             quadrant_captions=quadrant_captions,
             title=title,
-            tags=[],
+            tags=plan.tags,
+            greeting=plan.greeting,
             cover_url=cover_url,
             diary_id=diary_id,
             narration_audio_url=narration_audio_url,
+            narration_audio_duration_ms=audio.duration_ms if narration_audio_url and audio else None,
+            narration_audio_marks_ms=audio.marks_ms if narration_audio_url and audio else [],
         )

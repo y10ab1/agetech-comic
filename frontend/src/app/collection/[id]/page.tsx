@@ -11,7 +11,8 @@ import { SubtitleBox } from "@/components/SubtitleBox";
 import { ComicPanels } from "@/components/ComicPanels";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { Icon } from "@/components/Icon";
-import { useSpeech, SPEECH_RATES, type SpeechRate } from "@/hooks/useSpeech";
+import { SPEECH_RATES, type SpeechRate } from "@/hooks/useSpeech";
+import { useStoryPlayer } from "@/hooks/useStoryPlayer";
 import { buildMemoryScript } from "@/data/comic";
 import { loadStamps, stampDateText } from "@/data/collection";
 import { loadProfile } from "@/data/profile";
@@ -55,7 +56,7 @@ function loadDiaryView(id: string): {
 export default function DiaryDetailPage() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
-  const speech = useSpeech(0.8);
+  const speech = useStoryPlayer(0.8);
 
   // undefined＝讀取中（避免 SSR/hydration 不一致）；null＝找不到
   const [stamp, setStamp] = useState<StampRecord | null | undefined>(undefined);
@@ -73,19 +74,21 @@ export default function DiaryDetailPage() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [id]);
 
-  // 逐段朗讀：唸完一段自動推進下一段（同劇場的純函式模式）
-  const speakFrom = (index: number) => {
+  // 朗讀（同劇場）：當天旁白音檔原音重播；舊資料／重建腳本用瀏覽器朗讀
+  const startPlayback = () => {
     const segs = segmentsRef.current;
-    if (index >= segs.length) {
-      setPhase("done");
-      return;
-    }
-    setSegIndex(index);
+    if (!segs.length) return;
+    setSegIndex(0);
     setPhase("playing");
-    speech.speak(segs[index].text, () => speakFrom(index + 1));
+    // 音檔只對應當天原句；沒存 segments（回憶重述樣板）時不能配音檔
+    const audio = stamp?.segments?.length ? stamp.narrationAudio : undefined;
+    speech.play(segs, audio, {
+      onSegment: setSegIndex,
+      onEnd: () => setPhase("done"),
+    });
   };
 
-  const handlePlay = () => speakFrom(0);
+  const handlePlay = () => startPlayback();
   const handlePause = () => {
     speech.pause();
     setPhase("paused");
@@ -94,10 +97,7 @@ export default function DiaryDetailPage() {
     speech.resume();
     setPhase("playing");
   };
-  const handleReplay = () => {
-    speech.cancel();
-    speakFrom(0);
-  };
+  const handleReplay = () => startPlayback();
 
   if (stamp === undefined) return null;
 

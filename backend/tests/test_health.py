@@ -15,6 +15,7 @@ def _isolate_external(monkeypatch):
     monkeypatch.setenv("IMAGE_GEN_FALLBACK", "true")
     monkeypatch.setenv("ENV", "dev")
     monkeypatch.setenv("STORY_LLM_ENABLED", "false")  # 不打真的 Vertex 文字模型
+    monkeypatch.setenv("TTS_ENABLED", "false")  # 不打真的 Vertex TTS
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
@@ -63,7 +64,7 @@ def test_generate_comic_contract_fields(client, monkeypatch) -> None:
     # 自由文字無可靠分格：不給象限圖說，旁白保留原文
     assert data["quadrant_captions"] == []
     assert "今天去公園散步，還餵了鴿子。" in data["narration"]
-    # issue #9：音檔欄位預留，尚無 TTS 時一律為 null
+    # issue #9：未持久化（或 TTS 失敗）時沒有音檔網址，前端退回瀏覽器 TTS
     assert data["narration_audio_url"] is None
     # fallback 情況下沒有圖，panels 為空
     assert data["panels"] == []
