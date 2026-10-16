@@ -40,7 +40,14 @@ export function useStoryPlayer(initialRate: SpeechRate = 0.8) {
     audioRef.current = null;
   };
 
-  useEffect(() => () => stopAudio(), []);
+  // 卸載：同 cancel()，讓進行中的 play() 失敗回呼不會在已離開的頁面改用瀏覽器朗讀
+  useEffect(
+    () => () => {
+      tokenRef.current++;
+      stopAudio();
+    },
+    [],
+  );
 
   // 純函式遞迴（同頁面原本的逐句模式）；每次 render 重建即可，不需 useCallback
   function speakFrom(
