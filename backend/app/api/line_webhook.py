@@ -39,7 +39,7 @@ router = APIRouter(tags=["line"])
 
 _MAX_TEXT = 500
 MSG_NOT_TEXT = "請用文字告訴我您今天做了什麼，我幫您畫成四格漫畫喔！"
-MSG_RATE_LIMIT = "今天已經畫了好多張囉，先休息一下，晚一點再來找我喔！"
+MSG_RATE_LIMIT = "阿咪剛剛畫了好多張，手有點痠，請過一陣子再傳給我喔！"
 MSG_FAILED = "不好意思，這次畫圖出了點問題，請再傳一次給我。"
 
 
@@ -101,14 +101,24 @@ def build_result_messages(result: ComicResult) -> list:
 
 
 async def _send(api: AsyncMessagingApi, user_id: str, reply_token: str | None, messages: list) -> None:
-    """先用 reply token（免費），失效（逾時／已用過）再 push。"""
+    """先用 reply token（免費），失敗（逾時／已用過／網路）再 push。
+
+    整組訊息仍送不出去（例如 LINE 不接受圖片或音檔網址）時，退而只推第一則文字，
+    確保長輩至少收到回應。
+    """
     if reply_token:
         try:
             await api.reply_message(ReplyMessageRequest(reply_token=reply_token, messages=messages))
             return
-        except ApiException as exc:
-            logger.info("reply token 無法使用（%s），改用 push", exc.status)
-    await api.push_message(PushMessageRequest(to=user_id, messages=messages))
+        except Exception as exc:  # noqa: BLE001
+            logger.info("reply 失敗（%s），改用 push", getattr(exc, "status", exc))
+    try:
+        await api.push_message(PushMessageRequest(to=user_id, messages=messages))
+    except Exception:
+        if len(messages) <= 1:
+            raise
+        logger.exception("整組訊息送不出去，只推文字")
+        await api.push_message(PushMessageRequest(to=user_id, messages=messages[:1]))
 
 
 async def handle_message(

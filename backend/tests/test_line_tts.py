@@ -325,9 +325,10 @@ def test_build_result_messages() -> None:
 
 
 class _FakeApi:
-    def __init__(self, reply_fails=False):
+    def __init__(self, reply_fails=False, push_rejects_media=False):
         self.replies, self.pushes, self.loading = [], [], 0
         self.reply_fails = reply_fails
+        self.push_rejects_media = push_rejects_media
 
     async def reply_message(self, req):
         from linebot.v3.messaging import ApiException
@@ -337,6 +338,8 @@ class _FakeApi:
         self.replies.append(req.messages)
 
     async def push_message(self, req):
+        if self.push_rejects_media and len(req.messages) > 1:
+            raise RuntimeError("400 invalid media url")
         self.pushes.append((req.to, req.messages))
 
     async def show_loading_animation(self, req):
@@ -395,3 +398,20 @@ async def test_line_generate_failure_refunds_quota(monkeypatch) -> None:
         api = _FakeApi()
         await mod._generate_and_reply(api, s, "U1", "rt", "今天很好")
         assert api.replies[0][0].text == mod.MSG_FAILED and api.loading == 1
+
+
+@pytest.mark.anyio
+async def test_send_falls_back_to_text_only() -> None:
+    """reply 失敗（非 ApiException 也算）→ push；整組被拒 → 只推第一則文字。"""
+    from linebot.v3.messaging import TextMessage
+
+    from app.api import line_webhook as mod
+
+    class _NetErr(_FakeApi):
+        async def reply_message(self, req):
+            raise ConnectionError("reset")
+
+    api = _NetErr(push_rejects_media=True)
+    msgs = [TextMessage(text="故事"), TextMessage(text="圖")]
+    await mod._send(api, "U1", "rt", msgs)
+    assert api.pushes == [("U1", msgs[:1])]
