@@ -44,6 +44,14 @@ export interface DisplayPanel {
   placeholder?: boolean;
 }
 
+/** 後端 TTS 旁白音檔（念的內容＝segments 全文；marksMs 為各段/各格起始毫秒） */
+export interface NarrationAudio {
+  url: string;
+  durationMs: number;
+  /** 有四格時 4 筆（對應 panelIndex 0–3），否則 1 筆 */
+  marksMs: number[];
+}
+
 /** 前端顯示用的完整腳本（由 mock 或 API 結果轉出） */
 export interface DisplayScript {
   loglineText: string;
@@ -56,6 +64,10 @@ export interface DisplayScript {
   /** 四個象限的圖說（依閱讀順序）；後端未提供時省略，改顯示 panels[0].caption */
   quadrantCaptions?: QuadrantCaptions;
   segments: ScriptSegment[];
+  /** 後端旁白音檔；沒有時（mock／TTS 失敗）用瀏覽器 speechSynthesis */
+  narrationAudio?: NarrationAudio;
+  /** 後端 AI 寫的分享問候語；沒有時分享頁以樣板組 */
+  greeting?: string;
 }
 
 /** 集章存摺的一枚印章 */
@@ -79,4 +91,6 @@ export interface StampRecord {
   panels?: DisplayPanel[];
   /** 單張四格圖的象限圖說（落章時寫入；panels 為多張的舊資料不適用） */
   quadrantCaptions?: QuadrantCaptions;
+  /** 當天的旁白音檔（落章時寫入；舊資料或無音檔時用瀏覽器朗讀） */
+  narrationAudio?: NarrationAudio;
 }

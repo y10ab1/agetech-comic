@@ -250,3 +250,56 @@ def test_find_fabrications_synonyms() -> None:
         {"caption": "一起吃午餐，早晨真好。", "scene": "s"}]}, "x")
     assert sw.find_fabrications(plan, "早上和老伴吃午飯") == []
     assert sw.find_fabrications(plan, "和老伴吃飯") == ["早晨", "午餐"]
+
+
+def test_validate_new_fields() -> None:
+    """narration／greeting 正規化；tags 只留 taxonomy 內的、去重。"""
+    raw = {
+        **GOOD,
+        "narration": "第一格，長輩在窗邊微笑。第二格，長輩走進熱鬧的菜市場。第三格，長輩和老伴在菜攤前挑菜。",
+        "tags": ["market", "spouse", "unknown", "market"],
+        "greeting": "今天和你爸去買菜，猜猜買了什麼",
+    }
+    plan = sw.validate_story(raw, "x")
+    assert plan.narration.startswith("第一格")
+    assert plan.tags == ["market", "spouse"]
+    assert plan.greeting == "今天和你爸去買菜，猜猜買了什麼。"
+    # 舊格式（無新欄位）仍可驗證
+    old = sw.validate_story(GOOD, "x")
+    assert (old.narration, old.tags, old.greeting) == ("", [], "")
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [{"narration": "太短"}, {"narration": "好" * 500}, {"greeting": "好" * 80}],
+)
+def test_validate_rejects_new_fields(bad) -> None:
+    with pytest.raises(ValueError):
+        sw.validate_story({**GOOD, **bad}, "x")
+
+
+def test_fabrication_checks_narration_and_greeting() -> None:
+    plan = sw.validate_story({**GOOD, "greeting": "我今天一早就出門了，你呢？"}, "x")
+    assert "出門" in sw.find_fabrications(plan, "高興 + 菜市場 + 老伴·買菜")
+
+
+@pytest.mark.anyio
+async def test_rules_tags_fallback(monkeypatch) -> None:
+    monkeypatch.setenv("STORY_LLM_ENABLED", "false")
+    get_settings.cache_clear()
+    w = sw.StoryWriter(get_settings())
+    assert (await w.write("平靜 + 待在家裡 + 看電視")).tags == ["home"]
+    assert (await w.write("今天很開心")).tags == []
+    get_settings.cache_clear()
+
+
+def test_tag_labels_match_shared_taxonomy() -> None:
+    """後端可標記的 tag 需與 shared/tags.json（非 reserved）一致（防漂移）。"""
+    import json
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[2] / "shared/tags.json"
+    if not src.exists():
+        pytest.skip("shared/ 不在此環境（如 backend 容器）")
+    tags = json.loads(src.read_text(encoding="utf-8"))["tags"]
+    assert set(sw.TAG_LABELS) == {t["id"] for t in tags if not t.get("reserved")}

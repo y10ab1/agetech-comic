@@ -84,6 +84,7 @@ export default function SharePage() {
       segments: script.segments,
       panels: script.panels,
       quadrantCaptions: script.quadrantCaptions,
+      narrationAudio: script.narrationAudio,
     };
     const list = addStamp(record);
     // 消耗一次生成、依累計章數發里程碑獎勵
@@ -101,7 +102,8 @@ export default function SharePage() {
       // 正式：開 LINE 分享選單，由長輩自己選家人／群組送出（我們無從得知是否送出，
       // 故提示語不宣稱「已送到」）
       const panel = script.panels[0];
-      const text = buildGreeting(selections, events, narrator.name);
+      // 後端 AI 依當天故事寫的問候語優先；沒有時用樣板
+      const text = script.greeting || buildGreeting(selections, events, narrator.name);
       const imageUrl =
         panel && !panel.placeholder && /^https?:\/\//.test(panel.src)
           ? panel.src

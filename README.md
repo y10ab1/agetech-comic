@@ -103,7 +103,8 @@ deploy/gcp/deploy.sh all   # 或 pb / backend / frontend
 
 - **已完成**：Vertex Nano Banana 2 Lite（`gemini-3.1-flash-lite-image`）生圖（單張四格漫畫）、PocketBase 日記持久化 + 圖檔儲存、`/comics/generate` 與 `/me/diaries`、docker-compose、GCP 正式部署（`deploy/gcp/`）。
 - **故事文字**：Vertex 文字模型（`VERTEX_TEXT_MODEL`，預設 `gemini-3.8-flash`，不合格或失敗時改用 `gemini-3.5-flash-lite`）撰寫標題、總結、四格圖說與畫面描述；只用輸入有的資訊，失敗時自動退回規則式（`backend/app/services/story_writer.py`）。
-- **stub / 待強化**：tag 判斷尚未由模型產生（前端圖卡流程自行推導）。
-- **待做**：LINE channel/LIFF 建置與 token 驗證（P1）、`GET /styles`、`GET /me/rewards`、推播排程。
+- **故事文字**另含口述影像、taxonomy tags 與分享問候語；**旁白語音**由 Gemini 3.8 Flash-Lite TTS 逐格合成（`backend/app/services/tts.py`），劇場／回憶內頁播放並逐格高亮，失敗時退回瀏覽器 TTS。
+- **LINE Bot**：官方帳號 `@389syzka`，傳文字日記即回覆四格漫畫圖＋故事＋旁白語音（`backend/app/api/line_webhook.py`）。
+- **待做**：LIFF 與 LINE token 驗證（P1）、`GET /styles`、`GET /me/rewards`、推播排程。
 
 詳見 [docs/](docs/)（PRD、架構、API 契約）。

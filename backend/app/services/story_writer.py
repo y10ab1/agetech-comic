@@ -1,7 +1,8 @@
 """故事撰寫（Vertex 文字模型）。
 
 把長輩當天的輸入（圖卡結構化 logline 或自由文字）寫成：標題、一句話總結、
-四格（每格：念給長輩聽的圖說 caption＋給生圖模型的畫面描述 scene）。
+四格（每格：念給長輩聽的圖說 caption＋給生圖模型的畫面描述 scene）、
+整張圖的口述影像 narration、taxonomy tags、長輩傳給家人的問候語 greeting。
 
 - 只用輸入裡有的資訊：不新增人物、地點、活動、時間、結果（見 _SYSTEM）。
 - 輸出經結構驗證；模型失敗／逾時／格式不符時退回規則式（本檔 rules_*），
@@ -33,6 +34,26 @@ _PLACE_CAPTIONS = {
 }
 
 _MOOD_ID_LABELS = {"happy": "高興", "calm": "平靜", "tired": "有點累"}
+
+# 可由 AI 標記的 tag id（shared/tags.json 非 reserved 的 tags；tests 會比對防漂移）。
+# 後端 Docker 映像不含 shared/，故在此列出
+TAG_LABELS = {
+    "grandchild": "孫子/孫女",
+    "children": "兒女",
+    "parents": "父母",
+    "spouse": "伴侶",
+    "friend": "朋友",
+    "market": "買菜",
+    "walk": "出門走走",
+    "center": "樂齡中心",
+    "exercise": "運動",
+    "food": "美食",
+    "music": "音樂",
+    "home": "在家",
+}
+_PLACE_TAGS = {"菜市場": "market", "公園散步": "walk", "樂齡中心": "center", "待在家裡": "home"}
+_MAX_NARRATION = 400
+_MAX_GREETING = 60
 _MAX_CAPTION = 60
 _MAX_SCENE = 300
 _MAX_TITLE = 20
@@ -49,6 +70,12 @@ class StoryPlan:
     captions: list[str] = field(default_factory=list)
     # 與 captions 一一對應的畫面描述（給生圖 prompt）；空時生圖改用 captions
     scenes: list[str] = field(default_factory=list)
+    # 整張圖的口述影像（給看不見畫面的長輩聽）；空＝由呼叫端以圖說組成
+    narration: str = ""
+    # 限定 taxonomy 的 tag id（TAG_LABELS）
+    tags: list[str] = field(default_factory=list)
+    # 長輩第一人稱、傳給家人的問候語；空＝前端以樣板組
+    greeting: str = ""
     source: Literal["llm", "rules"] = "rules"
 
 
@@ -102,12 +129,22 @@ def rules_captions(summary: str) -> list[str]:
     return [f"今天的心情：{mood}。", place_caption, f"{phrases[0]}。", last]
 
 
+def rules_tags(summary: str) -> list[str]:
+    """結構化 logline 依地點給 tag；其餘（自由文字）不猜。"""
+    parsed = parse_logline(summary)
+    if parsed is None:
+        return []
+    tag = _PLACE_TAGS.get(parsed[1])
+    return [tag] if tag else []
+
+
 def rules_plan(text: str) -> StoryPlan:
     summary = text.strip()[:200]
     return StoryPlan(
         title=rules_title(summary),
         summary=summary,
         captions=rules_captions(summary),
+        tags=rules_tags(summary),
         source="rules",
     )
 
@@ -143,7 +180,17 @@ _SYSTEM = """你是「樂齡漫畫日記」的說書人，幫台灣長輩把今�
 - panels[i].caption：該格要念給長輩聽的完整句子（不可以逗號結尾、不可只有半句）。
 - panels[i].scene：給插畫家的畫面描述（中文，不超過 80 字）：主角是同一位台灣長輩，
   寫出這一格的場景、動作、表情與輸入中出現的人物；不可出現文字、招牌字或對話框。
-  畫面描述同樣不能編造：不可加入輸入沒有、會和主角互動的人物，不可指定時間點（早晨、夕陽等）。"""
+  畫面描述同樣不能編造：不可加入輸入沒有、會和主角互動的人物，不可指定時間點（早晨、夕陽等）。
+- narration：整張四格漫畫的「口述影像」，念給看不見畫面的長輩聽（80～200 字）。
+  依閱讀順序用「第一格」「第二格」…逐格描述畫面：主角在哪裡、在做什麼、表情如何、旁邊有誰。
+  只描述畫面中看得到、且輸入有的內容，同樣不能編造；panels 為空時就整體描述一張溫馨的圖。
+- tags：從下列 id 挑出符合輸入內容的（可多個、可空陣列），不可自創：
+  {tag_list}
+- greeting：長輩用第一人稱「我」傳給家人的一句 LINE 問候（不超過 40 字），
+  溫暖、口語、帶一個讓家人好回應的小問題；只提輸入有的事，不可編造。"""
+_SYSTEM = _SYSTEM.replace(
+    "{tag_list}", "、".join(f"{k}（{v}）" for k, v in TAG_LABELS.items())
+)
 
 
 class _Panel(BaseModel):
@@ -155,6 +202,20 @@ class _Story(BaseModel):
     title: str
     summary: str
     panels: list[_Panel]
+    narration: str = ""
+    tags: list[str] = []
+    greeting: str = ""
+
+
+class _StoryOut(BaseModel):
+    """給模型的 response_schema：新欄位一律必填（_Story 驗證時才容許缺漏）。"""
+
+    title: str
+    summary: str
+    panels: list[_Panel]
+    narration: str
+    tags: list[str]
+    greeting: str
 
 
 def _user_prompt(text: str, mood: str | None) -> str:
@@ -204,17 +265,30 @@ def validate_story(raw: dict, fallback_summary: str) -> StoryPlan:
         if not sc or len(sc) > _MAX_SCENE:
             raise ValueError("scene 長度不符")
     summary = _clean(story.summary) or fallback_summary
+    narration = re.sub(r"\s+", "", story.narration).strip()
+    if narration and not 20 <= len(narration) <= _MAX_NARRATION:
+        raise ValueError(f"narration 長度不符：{len(narration)}")
+    greeting = _clean(story.greeting)
+    if greeting:
+        if len(greeting) > _MAX_GREETING:
+            raise ValueError(f"greeting 太長：{greeting!r}")
+        greeting = _ensure_end(greeting)
+    # tag 不合 taxonomy 直接丟掉（不為了 tag 退件重寫）；保持順序去重
+    tags = list(dict.fromkeys(t for t in story.tags if t in TAG_LABELS))
     return StoryPlan(
         title=title,
         summary=summary[:200],
         captions=captions,
         scenes=scenes,
+        narration=narration,
+        tags=tags,
+        greeting=greeting,
         source="llm",
     )
 
 
 # 模型最常「順手補」的情節：時間點、餐別、移動／轉場。出現在輸出、但輸入沒有 → 視為編造。
-# 圖說／標題／總結（念給長輩聽）與畫面描述（決定畫什麼）都檢查。
+# 圖說／標題／總結／口述／問候語（念給長輩或家人看）與畫面描述（決定畫什麼）都檢查。
 _GUARDED_TERMS = (
     # 時間點
     "一大早", "一早", "清晨", "早晨", "早上", "上午", "中午", "午後", "下午",
@@ -257,7 +331,10 @@ def find_fabrications(plan: StoryPlan, source_text: str) -> list[str]:
 
     例：輸入「沒有出門」→ 輸出「沒有出門」可以，「出門走走」不行。
     """
-    out = plan.title + plan.summary + "".join(plan.captions) + "".join(plan.scenes)
+    out = (
+        plan.title + plan.summary + "".join(plan.captions) + "".join(plan.scenes)
+        + plan.narration + plan.greeting
+    )
     return [
         t
         for t in _GUARDED_TERMS
@@ -299,7 +376,7 @@ class StoryWriter:
             config=GenerateContentConfig(
                 system_instruction=_SYSTEM,
                 response_mime_type="application/json",
-                response_schema=_Story,
+                response_schema=_StoryOut,
                 temperature=0.5,
                 # 短文案不需要長推理：限制思考預算壓低延遲（生圖已要 30 秒以上）
                 thinking_config=ThinkingConfig(thinking_budget=512),
@@ -315,10 +392,15 @@ class StoryWriter:
         try:
             plan = validate_story(raw, summary)
         except (ValidationError, ValueError) as exc:
-            return None, f"格式不合格（{str(exc)[:80]}）：每格要是完整句子、四格或零格、標題 14 字內。"
+            return None, (
+                f"格式不合格（{str(exc)[:80]}）：每格要是完整句子、四格或零格、標題 14 字內、"
+                "narration 80～200 字、greeting 40 字內。"
+            )
         bad = find_fabrications(plan, text)
         if bad:
-            return plan, f"輸入沒有提到「{'、'.join(bad)}」，不可以寫進標題、總結、圖說或畫面描述。"
+            return plan, (
+                f"輸入沒有提到「{'、'.join(bad)}」，不可以寫進標題、總結、圖說、畫面描述、口述或問候語。"
+            )
         return plan, ""
 
     async def _write_with(self, model: str, text: str, mood: str | None, summary: str) -> StoryPlan:
@@ -357,4 +439,6 @@ class StoryWriter:
         # 結構化輸入一定要能分四格；模型回空時採規則式圖說（標題／總結仍用模型的）
         if not plan.captions and fallback.captions:
             plan.captions, plan.scenes = fallback.captions, []
+        if not plan.tags:
+            plan.tags = fallback.tags
         return plan

@@ -25,6 +25,9 @@ PB_IP_NAME="agetech-pb-internal"
 PB_SNAPSHOT_POLICY="agetech-pb-daily"
 PB_PASSWORD_SECRET="agetech-pb-admin-password"
 PB_ADMIN_EMAIL="admin@agetech.app"
+# LINE Messaging API 憑證：由人工建立（值來自 LINE Developers Console，見 README「LINE Bot」）
+LINE_SECRET_SECRET="agetech-line-channel-secret"
+LINE_TOKEN_SECRET="agetech-line-channel-access-token"
 VERTEX_IMAGE_MODEL="${VERTEX_IMAGE_MODEL:-gemini-3.1-flash-lite-image}"   # Nano Banana 2 Lite
 VERTEX_IMAGE_SIZE="${VERTEX_IMAGE_SIZE:-1K}"   # Lite 最大 1K；換 gemini-3-pro-image 可用 2K
 VERTEX_TEXT_MODEL="${VERTEX_TEXT_MODEL:-gemini-3.8-flash,gemini-3.5-flash-lite}"
@@ -72,6 +75,15 @@ infra() {
   fi
   $G secrets add-iam-policy-binding "$PB_PASSWORD_SECRET" --member="serviceAccount:${BACKEND_SA}" \
     --role=roles/secretmanager.secretAccessor >/dev/null
+
+  log "Secret：LINE channel 憑證（人工建立，這裡只檢查並授權）"
+  local s
+  for s in "$LINE_SECRET_SECRET" "$LINE_TOKEN_SECRET"; do
+    $G secrets describe "$s" >/dev/null 2>&1 \
+      || { echo "缺少 secret ${s}，請先依 deploy/gcp/README.md「LINE Bot」建立" >&2; exit 1; }
+    $G secrets add-iam-policy-binding "$s" --member="serviceAccount:${BACKEND_SA}" \
+      --role=roles/secretmanager.secretAccessor >/dev/null
+  done
 
   log "PocketBase VM：${PB_VM}（只開內網 8090；資料在 VM 磁碟、每日快照）"
   $G compute addresses describe "$PB_IP_NAME" --region="$REGION" >/dev/null 2>&1 \
@@ -145,8 +157,9 @@ backend() {
     --service-account="$BACKEND_SA" --allow-unauthenticated \
     --network=default --subnet=default --vpc-egress=private-ranges-only \
     --cpu=1 --memory=1Gi --concurrency=10 --timeout=300 --min-instances=0 --max-instances=3 \
-    --set-env-vars="^|^ENV=prod|DEBUG=false|VERTEX_PROJECT=${PROJECT}|VERTEX_LOCATION=global|VERTEX_IMAGE_MODEL=${VERTEX_IMAGE_MODEL}|VERTEX_IMAGE_SIZE=${VERTEX_IMAGE_SIZE}|VERTEX_TEXT_MODEL=${VERTEX_TEXT_MODEL}|STORY_LLM_ENABLED=true|IMAGE_GEN_FALLBACK=false|PERSIST_DIARIES=true|POCKETBASE_URL=http://${pbip}:8090|POCKETBASE_PUBLIC_URL=$(backend_url)|POCKETBASE_ADMIN_EMAIL=${PB_ADMIN_EMAIL}|GENERATE_LIMIT_PER_IP_HOUR=10|GENERATE_LIMIT_GLOBAL_HOUR=60|CORS_ORIGINS=[\"$(frontend_url)\"]" \
-    --set-secrets="POCKETBASE_ADMIN_PASSWORD=${PB_PASSWORD_SECRET}:latest" \
+    --no-cpu-throttling \
+    --set-env-vars="^|^ENV=prod|DEBUG=false|VERTEX_PROJECT=${PROJECT}|VERTEX_LOCATION=global|VERTEX_IMAGE_MODEL=${VERTEX_IMAGE_MODEL}|VERTEX_IMAGE_SIZE=${VERTEX_IMAGE_SIZE}|VERTEX_TEXT_MODEL=${VERTEX_TEXT_MODEL}|STORY_LLM_ENABLED=true|IMAGE_GEN_FALLBACK=false|PERSIST_DIARIES=true|POCKETBASE_URL=http://${pbip}:8090|POCKETBASE_PUBLIC_URL=$(backend_url)|POCKETBASE_ADMIN_EMAIL=${PB_ADMIN_EMAIL}|GENERATE_LIMIT_PER_IP_HOUR=10|GENERATE_LIMIT_GLOBAL_HOUR=60|LINE_GENERATE_LIMIT_PER_USER_HOUR=5|CORS_ORIGINS=[\"$(frontend_url)\"]" \
+    --set-secrets="POCKETBASE_ADMIN_PASSWORD=${PB_PASSWORD_SECRET}:latest,LINE_CHANNEL_SECRET=${LINE_SECRET_SECRET}:latest,LINE_CHANNEL_ACCESS_TOKEN=${LINE_TOKEN_SECRET}:latest" \
     --labels="app=agetech-comic,commit=${TAG}"
   curl -fsS "$(backend_url)/health" && echo
 }

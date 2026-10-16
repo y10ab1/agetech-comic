@@ -11,7 +11,8 @@ import { ComicPanels } from "@/components/ComicPanels";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { Icon } from "@/components/Icon";
 import { useFlow } from "@/context/FlowContext";
-import { useSpeech, SPEECH_RATES, type SpeechRate } from "@/hooks/useSpeech";
+import { SPEECH_RATES, type SpeechRate } from "@/hooks/useSpeech";
+import { useStoryPlayer } from "@/hooks/useStoryPlayer";
 import { useIdleHint } from "@/hooks/useIdleHint";
 import { isComplete } from "@/data/logline";
 import { createComic } from "@/data/comic";
@@ -31,7 +32,7 @@ const RATE_LABEL: Record<SpeechRate, string> = {
 /**
  * 虛擬人劇場 + 漫畫 —— 生成後先呈現「可閱讀故事文字 + 漫畫」，
  * 再由使用者主動觸發朗讀（WCAG 1.4.2；文字與語音並存）。
- * 慢速 TTS 逐段朗讀、同步切換貓咪表情與高亮漫畫格；語速三段、無倒數。
+ * 慢速朗讀（後端旁白音檔，或瀏覽器 TTS 逐段）、同步切換貓咪表情與高亮漫畫格；語速三段、無倒數。
  */
 export default function TheaterPage() {
   const router = useRouter();
@@ -47,7 +48,7 @@ export default function TheaterPage() {
     flowKey,
   } = useFlow();
   const narrator = getNarrator(narratorId);
-  const speech = useSpeech(0.8);
+  const speech = useStoryPlayer(0.8);
 
   const [script, setScript] = useState<DisplayScript | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
@@ -106,20 +107,19 @@ export default function TheaterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [complete]);
 
-  // 逐段朗讀：唸完一段自動推進下一段（純函式，避免遞迴 useCallback 的依賴問題）
-  const speakFrom = (index: number) => {
+  // 朗讀：有後端旁白音檔就播音檔（依時間推進句子），否則瀏覽器逐句朗讀
+  const startPlayback = () => {
     const s = scriptRef.current;
     if (!s) return;
-    if (index >= s.segments.length) {
-      setPhase("done");
-      return;
-    }
-    setSegIndex(index);
+    setSegIndex(0);
     setPhase("playing");
-    speech.speak(s.segments[index].text, () => speakFrom(index + 1));
+    speech.play(s.segments, s.narrationAudio, {
+      onSegment: setSegIndex,
+      onEnd: () => setPhase("done"),
+    });
   };
 
-  const handlePlay = () => speakFrom(0);
+  const handlePlay = () => startPlayback();
   const handlePause = () => {
     speech.pause();
     setPhase("paused");
@@ -128,10 +128,7 @@ export default function TheaterPage() {
     speech.resume();
     setPhase("playing");
   };
-  const handleReplay = () => {
-    speech.cancel();
-    speakFrom(0);
-  };
+  const handleReplay = () => startPlayback();
 
   if (!complete) {
     return (

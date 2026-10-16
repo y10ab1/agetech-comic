@@ -22,7 +22,10 @@
 | `title` | `str` | AI 依故事內容下的標題（如「菜市場的一天：跟朋友泡茶」），集章存摺卡片顯示用 |
 | `tags` | `list[str]` | **限定 taxonomy**（見下方白名單）。拍照/語音輸入時由 AI 判斷；圖卡輸入時可由前端傳入或後端重算 |
 | `cover_url` | `str` | 封面圖（可用第一格或另生成）。前端目前以「準備中」佔位圖呈現，拿到即替換 |
-| `narration_audio_url` | `str \| None` | 後端 TTS 旁白音檔（issue #9，預留）。`null`＝無音檔，前端退回瀏覽器 `speechSynthesis` |
+| `narration_audio_url` | `str \| None` | 後端 TTS 旁白音檔（issue #9，MP3）。`null`＝無音檔，前端退回瀏覽器 `speechSynthesis` |
+| `narration_audio_duration_ms` | `int \| None` | 旁白音檔長度（毫秒） |
+| `narration_audio_marks_ms` | `list[int]` | 旁白音檔各段起始毫秒：有四格時 4 筆對應 `quadrant_captions`，否則 1 筆（音檔念的就是劇場逐句文字） |
+| `greeting` | `str` | AI 寫的長輩第一人稱分享問候語；空字串＝前端以樣板組 |
 
 **tags 白名單**（controlled vocabulary，禁止自由生成）——
 **唯一事實來源：repo 根目錄 `shared/tags.json`**（前端直接 import、後端載入餵 DB seed 與 `GET /tags`）。
